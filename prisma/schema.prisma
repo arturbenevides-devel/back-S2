@@ -1,0 +1,138 @@
+// ===========================================
+// CONFIGURAÇÕES
+// ===========================================
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// EMPRESAS
+// ===========================================
+model Company {
+  id                String    @id @default(uuid())
+  createdIn         DateTime  @default(now()) @map("created_in")
+  isActive          Boolean   @default(true) @map("is_active")
+  updatedIn         DateTime? @updatedAt @map("updated_in")
+  name              String    @db.VarChar(255)
+  federalRegistration String  @db.VarChar(18) @map("federal_registration")
+
+  // Relacionamentos
+  users User[]
+
+  @@unique([federalRegistration])
+  @@map("companies")
+}
+
+// ===========================================
+// PERFIS
+// ===========================================
+model Profile {
+  id          String    @id @default(uuid())
+  createdIn   DateTime  @default(now()) @map("created_in")
+  isActive    Boolean   @default(true) @map("is_active")
+  updatedIn   DateTime? @updatedAt @map("updated_in")
+  description String    @db.Text
+  name        String    @db.VarChar(255)
+  isDefault   Boolean   @default(false) @map("is_default")
+
+  // Relacionamentos
+  users User[]
+  permissions ProfilePermission[]
+
+  @@map("profiles")
+}
+
+// ===========================================
+// USUÁRIOS
+// ===========================================
+model User {
+  id             String    @id @default(uuid())
+  createdIn      DateTime  @default(now()) @map("created_in")
+  isActive       Boolean   @default(true) @map("is_active")
+  updatedIn      DateTime? @updatedAt @map("updated_in")
+  email          String    @unique @db.VarChar(255)
+  fullName       String    @db.VarChar(255) @map("full_name")
+  password       String
+  profileImage   String?   @db.VarChar(255) @map("profile_image")
+  profileId      String    @map("profile_id")
+  companyId      String?   @map("company_id")
+
+  // Relacionamentos
+  profile Profile @relation(fields: [profileId], references: [id])
+  company Company? @relation(fields: [companyId], references: [id])
+
+  // Relacionamentos
+  passwordResetRequests UserPasswordResetRequest[]
+
+  @@map("users")
+}
+
+// ===========================================
+// SOLICITAÇÕES DE REDEFINIÇÃO DE SENHA
+// ===========================================
+model UserPasswordResetRequest {
+  resetToken  String    @id @default(uuid()) @map("reset_token")
+  expiresIn   DateTime  @map("expires_in")
+  isUsed      Boolean   @default(false) @map("is_used")
+  requestIn   DateTime  @default(now()) @map("request_in")
+  userId      String    @map("user_id")
+
+  // Relacionamentos
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_password_reset_request")
+}
+
+// ===========================================
+// PERMISSÕES DE PERFIL
+// ===========================================
+model ProfilePermission {
+  id          String    @id @default(uuid())
+  createdIn   DateTime  @default(now()) @map("created_in")
+  isActive    Boolean   @default(true) @map("is_active")
+  updatedIn   DateTime? @updatedAt @map("updated_in")
+  profileId   String    @map("profile_id")
+  menuId      String?   @map("menu_id")
+  controller  String    @db.VarChar(100)
+  canCreate   Boolean   @default(false) @map("can_create")
+  canUpdate   Boolean   @default(false) @map("can_update")
+  canDelete   Boolean   @default(false) @map("can_delete")
+  canFind     Boolean   @default(false) @map("can_find")
+  canFindAll  Boolean   @default(false) @map("can_find_all")
+
+  // Relacionamentos
+  profile Profile @relation(fields: [profileId], references: [id])
+  menu    Menu?   @relation(fields: [menuId], references: [id])
+
+  @@unique([profileId, controller])
+  @@unique([profileId, menuId])
+  @@map("profile_permissions")
+}
+
+// ===========================================
+// MENUS
+// ===========================================
+model Menu {
+  id             String    @id @default(uuid())
+  createdIn      DateTime  @default(now()) @map("created_in")
+  isActive       Boolean   @default(true) @map("is_active")
+  updatedIn      DateTime? @updatedAt @map("updated_in")
+  action         String    @db.VarChar(255)
+  deviceType     String    @db.VarChar(10) @map("device_type")
+  displayOrder   Int       @map("display_order")
+  icon           String    @db.VarChar(50)
+  name           String    @db.VarChar(255)
+  sectionName    String?   @db.VarChar(50) @map("section_name")
+  tooltip        String?   @db.VarChar(255)
+  type           String    @default("ROOT_MENU") @db.VarChar(30)
+
+  // Relacionamentos
+  profilePermissions ProfilePermission[]
+
+  @@map("menus")
+}

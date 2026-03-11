@@ -1,0 +1,14 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { EmailService } from './services/email.service';
+import { emailConfig } from './email.config';
+
+@Module({
+  imports: [ConfigModule.forFeature(emailConfig)],
+  providers: [EmailService],
+  exports: [EmailService],
+})
+export class EmailModule {}
+
+
+

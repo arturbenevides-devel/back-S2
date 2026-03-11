@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bem-vindo ao Develcode Whitelabel</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+        body {
+          font-family: "Inter", sans-serif;
+          font-optical-sizing: auto;
+          font-style: normal;
+          margin: 0;
+          padding: 0;
+          background-color: #f6f7fb;
+          padding-top: 67px;
+        }
+
+        .title {
+          color: #3480D9;
+          font-size: 24px;
+          font-weight: bold;
+          margin-bottom: 30px;
+        }
+
+        .subtitle {
+          color: #3480D9;
+          font-size: 16px;
+          font-weight: semi-bold;
+          margin: 35px 0 8px;
+        }
+
+        .content {
+          color: #4B5565;
+          font-size: 16px;
+          line-height: 150%;
+        }
+
+        .subcontent {
+          color: #4B5565;
+          font-size: 14px;
+          line-height: 20px;
+          margin: 0;
+        }
+
+        .container {
+          max-width: 540px;
+          background: #ffffff;
+          padding: 23px 30px;
+          margin: 0 auto;
+        }
+
+        .border-bottom {
+          border-bottom: 1px solid #697586;
+        }
+
+        .logo-container {
+          width: 100%;
+          text-align: center;
+          margin-bottom: 55px;
+        }
+
+        .button {
+          display: inline-block;
+          background-color: #3480D9;
+          color: #ffffff !important;
+          padding: 10px 20px;
+          text-decoration: none !important;
+          font-size: 14px;
+          border-radius: 5px;
+          margin: 10px 0 31px;
+        }
+
+        .footer {
+          margin-top: 25px;
+          font-size: 10px;
+          line-height: 150%;
+          color: #697586;
+        }
+
+        .social-icons p {
+          font-size: 10px;
+          color: #364152;
+          margin-top: 50px;
+        }
+
+        .social-icons img {
+          width: 24px;
+          filter: invert(21%) sepia(48%) saturate(297%) hue-rotate(176deg) brightness(95%) contrast(89%);
+        }
+
+        .social-icons ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+
+        .social-icons ul li {
+          display: inline;
+          vertical-align: middle;
+          margin-right: 10px;
+          margin-left: 0 !important;
+        }
+
+        a {
+          text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <div class="border-bottom">
+        <div class="logo-container">
+            <img src="https://develreadystorage.blob.core.windows.net/dev-container/email-template/logo-develcode.png"
+                 alt="Develcode" width="166" height="21">
+        </div>
+        <h2 class="title">Olá!</h2>
+        <p class="content">
+            Seu e-mail ({{userEmail}}) foi cadastrado no sistema Develcode Whitelabel
+        </p>
+        <a href="{{confirmationUrl}}" target="_blank" class="button">
+            Confirmar conta</a>
+    </div>
+
+    <h3 class="subtitle">O que é a Develcode Whitelabel?</h3>
+    <p class="subcontent">Lorem ipsum dolor sit amet consectetur. Pellentesque tellus diam dolor aliquet a cras felis.
+        Duis massa orci
+        feugiat amet aliquam. Donec nisl massa ante elementum.</p>
+
+    <div class="social-icons">
+        <p>
+            Acompanhe nossas redes sociais:
+        </p>
+        <ul>
+            <li>
+                <a href="https://br.linkedin.com/company/develcode" target="_blank">
+                    <img src="https://develreadystorage.blob.core.windows.net/dev-container/email-template/linkedin.png"
+                         alt="facebook">
+                </a>
+            </li>
+            <li>
+                <a href="https://www.instagram.com/develcode/" target="_blank">
+                    <img src="https://develreadystorage.blob.core.windows.net/dev-container/email-template/instagram.png"
+                         alt="facebook">
+                </a>
+            </li>
+            <li>
+                <a href="https://www.facebook.com/develcodetecnologia/" target="_blank">
+                    <img src="https://develreadystorage.blob.core.windows.net/dev-container/email-template/facebook.png"
+                         alt="facebook">
+                </a>
+            </li>
+            <li>
+                <a href="https://www.youtube.com/channel/UCUly-tbnc4-Dt0spYKDvntg" target="_blank">
+                    <img src="https://develreadystorage.blob.core.windows.net/dev-container/email-template/youtube.png"
+                         alt="facebook">
+                </a>
+            </li>
+        </ul>
+    </div>
+    <p class="footer">Develcode - 2025 | Todos os direitos reservados</p>
+</div>
+</body>
+
+</html>

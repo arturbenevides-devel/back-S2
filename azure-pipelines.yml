@@ -1,0 +1,143 @@
+trigger:
+  branches:
+    include:
+      - develop
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  nodeVersion: '20.x'
+
+stages:
+- stage: Build
+  displayName: 'Build Application'
+  jobs:
+  - job: BuildJob
+    displayName: 'Build'
+    steps:
+    - checkout: self
+
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '$(nodeVersion)'
+      displayName: 'Install Node.js'
+
+    - task: Cache@2
+      inputs:
+        key: 'npm | "$(Agent.OS)" | package-lock.json'
+        restoreKeys: |
+          npm | "$(Agent.OS)"
+        path: 'node_modules'
+      displayName: 'Cache node_modules'
+
+    - script: |
+        npm ci --prefer-offline --no-audit
+      displayName: 'Install dependencies'
+
+    - script: |
+        npm run build
+      displayName: 'Build application'
+
+    - script: |
+        mkdir -p $(Build.ArtifactStagingDirectory)/deploy
+        cp -r dist $(Build.ArtifactStagingDirectory)/deploy/
+        cp -r prisma $(Build.ArtifactStagingDirectory)/deploy/
+        cp package.json $(Build.ArtifactStagingDirectory)/deploy/
+        cp package-lock.json $(Build.ArtifactStagingDirectory)/deploy/
+        node -e "const pkg = require('./package.json'); delete pkg.scripts.build; require('fs').writeFileSync('$(Build.ArtifactStagingDirectory)/deploy/package.json', JSON.stringify(pkg, null, 2));"
+      displayName: 'Prepare deployment package (sem node_modules e sem script build)'
+
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(Build.ArtifactStagingDirectory)/deploy'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/app.zip'
+        replaceExistingArchive: true
+      displayName: 'Archive deployment package'
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+        publishLocation: 'Container'
+      displayName: 'Publish artifacts'
+
+- stage: Deploy
+  displayName: 'Deploy to Azure'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - job: DeployDev
+    displayName: 'Deploy to Dev'
+    condition: eq(variables['Build.SourceBranchName'], 'develop')
+    steps:
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download build artifacts'
+      inputs:
+        buildType: 'current'
+        artifactName: 'drop'
+        targetPath: '$(Pipeline.Workspace)'
+
+    - task: AzureAppServiceSettings@1
+      displayName: 'Configure Azure App Service Settings'
+      inputs:
+        azureSubscription: 'jornada-vendas-service-connection'
+        appName: 'api-jornada-vendas'
+        appSettings: |
+          [
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "true"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "~20"
+            }
+          ]
+
+    - task: AzureWebApp@1
+      displayName: 'Deploy to Azure App Service'
+      inputs:
+        azureSubscription: 'jornada-vendas-service-connection'
+        appName: 'api-jornada-vendas'
+        package: '$(Pipeline.Workspace)/app.zip'
+        deploymentMethod: 'auto'
+
+  - job: DeployProd
+    displayName: 'Deploy to Prod'
+    condition: eq(variables['Build.SourceBranchName'], 'main')
+    steps:
+    - task: DownloadPipelineArtifact@2
+      displayName: 'Download build artifacts'
+      inputs:
+        buildType: 'current'
+        artifactName: 'drop'
+        targetPath: '$(Pipeline.Workspace)'
+
+    - task: AzureAppServiceSettings@1
+      displayName: 'Configure Azure App Service Settings'
+      inputs:
+        azureSubscription: 'jornada-vendas-service-connection-prod'
+        appName: 'api-jornada-vendas-prod'
+        appSettings: |
+          [
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "true"
+            },
+            {
+              "name": "WEBSITE_NODE_DEFAULT_VERSION",
+              "value": "~20"
+            }
+          ]
+
+    - task: AzureWebApp@1
+      displayName: 'Deploy to Azure App Service'
+      inputs:
+        azureSubscription: 'jornada-vendas-service-connection-prod'
+        appName: 'api-jornada-vendas-prod'
+        package: '$(Pipeline.Workspace)/app.zip'
+        deploymentMethod: 'auto'
