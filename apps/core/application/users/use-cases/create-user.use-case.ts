@@ -32,6 +32,13 @@ export class CreateUserUseCase {
       throw new ConflictException('Usuário com este email já existe');
     }
 
+    const profile = await this.profileRepository.findById(createUserDto.profileId);
+    if (!profile) {
+      throw new BadRequestException(
+        'Perfil não encontrado ou inativo.',
+      );
+    }
+
     const tempPassword =
       createUserDto.password && createUserDto.password.length >= 6
         ? createUserDto.password
