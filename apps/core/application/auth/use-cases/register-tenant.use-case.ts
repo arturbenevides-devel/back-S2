@@ -127,6 +127,7 @@ export class RegisterTenantUseCase {
       await this.registry.register(schemaName, dto.companyName);
     } catch (e) {
       await dropTenantSchema(url, schemaName).catch(() => undefined);
+      await this.registry.cleanupFailedProvision(schemaName).catch(() => undefined);
       throw e;
     }
     return { message: 'Cadastro realizado com sucesso' };

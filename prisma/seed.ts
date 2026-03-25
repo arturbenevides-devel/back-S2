@@ -1,16 +1,10 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { config } from 'dotenv';
+import { databaseUrlWithPostgresSchema } from '../common/utils/database-url.util';
 
 config();
 
 const prisma = new PrismaClient();
-
-function quoteSchema(schemaName: string): string {
-  if (!/^\d{14}$/.test(schemaName)) {
-    throw new Error(`schema_name inválido no tenant_registry: ${schemaName}`);
-  }
-  return `"${schemaName.replace(/"/g, '""')}"`;
-}
 
 async function seedMenusIfEmpty(tx: Prisma.TransactionClient): Promise<void> {
   const existingMenus = await tx.menu.findFirst();
@@ -77,6 +71,10 @@ async function seedMenusIfEmpty(tx: Prisma.TransactionClient): Promise<void> {
 }
 
 async function main() {
+  const baseUrl = process.env.DATABASE_URL;
+  if (!baseUrl) {
+    process.exit(1);
+  }
   const rows = await prisma.$queryRaw<{ schema_name: string }[]>`
     SELECT schema_name FROM public.tenant_registry ORDER BY schema_name
   `;
@@ -88,10 +86,18 @@ async function main() {
   }
   for (const row of rows) {
     const schemaName = row.schema_name;
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${quoteSchema(schemaName)}, public`);
-      await seedMenusIfEmpty(tx);
+    const tenantPrisma = new PrismaClient({
+      datasources: {
+        db: { url: databaseUrlWithPostgresSchema(baseUrl, schemaName) },
+      },
     });
+    try {
+      await tenantPrisma.$transaction(async (tx) => {
+        await seedMenusIfEmpty(tx);
+      });
+    } finally {
+      await tenantPrisma.$disconnect();
+    }
     console.log(`Seed: menus verificados no tenant ${schemaName}.`);
   }
 }

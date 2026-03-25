@@ -30,4 +30,15 @@ export class TenantRegistryService {
       companyName,
     );
   }
+
+  async cleanupFailedProvision(schemaName: string): Promise<void> {
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM public.tenant_migration_log WHERE schema_name = $1`,
+      schemaName,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM public.tenant_registry WHERE schema_name = $1`,
+      schemaName,
+    );
+  }
 }
