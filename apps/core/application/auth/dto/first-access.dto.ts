@@ -1,6 +1,7 @@
 import { IsEmail, IsString, MinLength, IsObject, ValidateNested, Length } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsValidCnpj } from '@common/utils/is-valid-cnpj.decorator';
 
 class AuthDto {
   @ApiProperty({ example: 'usuario@exemplo.com' })
@@ -14,10 +15,11 @@ class AuthDto {
 }
 
 export class FirstAccessDto {
-  @ApiProperty({ description: 'CNPJ da empresa (14 dígitos)' })
+  @ApiProperty({ description: 'CNPJ da empresa (14 dígitos, válido)' })
   @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\D/g, '') : value))
   @IsString()
   @Length(14, 14, { message: 'CNPJ deve ter 14 dígitos' })
+  @IsValidCnpj()
   cnpj: string;
 
   @ApiProperty({ type: AuthDto })

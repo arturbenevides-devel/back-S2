@@ -142,7 +142,7 @@ Body:
 
 ```json
 {
-  "cnpj": "12.345.678/0001-90",
+  "cnpj": "11.222.333/0001-81",
   "companyName": "Empresa Exemplo LTDA",
   "fullName": "Admin Empresa",
   "email": "admin@empresa.com.br",
@@ -152,7 +152,7 @@ Body:
 
 Processo:
 
-- Normaliza CNPJ para 14 dígitos.
+- Normaliza CNPJ para 14 dígitos e valida dígitos verificadores (CNPJ inválido retorna 400).
 - Valida se schema/tenant já existe.
 - Cria schema do tenant.
 - Aplica migrations do tenant.
@@ -167,7 +167,7 @@ Body:
 
 ```json
 {
-  "cnpj": "12345678000190",
+  "cnpj": "11222333000181",
   "email": "admin@empresa.com.br",
   "password": "senha123"
 }

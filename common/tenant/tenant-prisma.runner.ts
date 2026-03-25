@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@common/database/persistence/prisma.service';
-import { BadRequestException } from '@nestjs/common';
+import { isValidCnpjDigits } from '@common/utils/cnpj.util';
 
 @Injectable()
 export class TenantPrismaRunner {
   constructor(private readonly prisma: PrismaService) {}
 
   quoteSchema(schema: string): string {
-    if (!/^\d{14}$/.test(schema)) {
+    if (!isValidCnpjDigits(schema)) {
       throw new BadRequestException('Identificador de tenant inválido');
     }
     return `"${schema.replace(/"/g, '""')}"`;

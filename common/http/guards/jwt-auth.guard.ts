@@ -2,6 +2,7 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { InvalidTokenException, ExpiredTokenException } from '@common/utils/exceptions/auth.exceptions';
+import { isValidCnpjDigits } from '@common/utils/cnpj.util';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -19,7 +20,11 @@ export class JwtAuthGuard implements CanActivate {
       const payload = (await this.jwtService.verifyAsync(token)) as {
         tenantSchema?: string;
       };
-      if (!payload.tenantSchema || typeof payload.tenantSchema !== 'string') {
+      if (
+        !payload.tenantSchema ||
+        typeof payload.tenantSchema !== 'string' ||
+        !isValidCnpjDigits(payload.tenantSchema)
+      ) {
         throw new UnauthorizedException('Token inválido: refaça o login informando o CNPJ da empresa');
       }
       request['user'] = payload;
