@@ -147,6 +147,9 @@ export class ProfileRepository implements IProfileRepository {
 
   async delete(id: string): Promise<void> {
     return this.run(async (tx) => {
+      await tx.profilePermission.deleteMany({
+        where: { profileId: id },
+      });
       await tx.profile.delete({
         where: { id },
       });

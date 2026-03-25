@@ -11,6 +11,7 @@ export interface UserRepository {
   updateIsActive(userId: string, isActive: boolean): Promise<void>;
   delete(id: string): Promise<void>;
   findAll(): Promise<User[]>;
+  countByProfileId(profileId: string): Promise<number>;
 }
 
 

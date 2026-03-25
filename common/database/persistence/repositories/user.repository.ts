@@ -224,4 +224,12 @@ export class UserRepository implements IUserRepository {
       );
     });
   }
+
+  async countByProfileId(profileId: string): Promise<number> {
+    return this.run(async (tx) =>
+      tx.user.count({
+        where: { profileId },
+      }),
+    );
+  }
 }

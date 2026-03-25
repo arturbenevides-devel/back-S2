@@ -7,6 +7,7 @@ import { UpdateProfileStatusUseCase } from './use-cases/update-profile-status.us
 import { DeleteProfileUseCase } from './use-cases/delete-profile.use-case';
 import { ListProfilesUseCase } from './use-cases/list-profiles.use-case';
 import { ProfileRepository } from '@common/database/persistence/repositories/profile.repository';
+import { UserRepository } from '@common/database/persistence/repositories/user.repository';
 import { MenuRepository } from '@common/database/persistence/repositories/menu.repository';
 import { ProfilesController } from '@common/http/controllers/profiles.controller';
 import { ProfilePermissionsModule } from '../profile-permissions/profile-permissions.module';
@@ -29,6 +30,10 @@ import { PermissionGuard } from '@common/http/guards/permission.guard';
     {
       provide: 'ProfileRepository',
       useClass: ProfileRepository,
+    },
+    {
+      provide: 'UserRepository',
+      useClass: UserRepository,
     },
     {
       provide: 'MenuRepository',
