@@ -1,139 +1,100 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
-
-const schema = process.env.SEED_TENANT_SCHEMA?.replace(/\D/g, '');
-
-if (!schema || schema.length !== 14) {
-  console.error('Defina SEED_TENANT_SCHEMA com 14 dígitos (CNPJ do schema do tenant).');
-  process.exit(1);
-}
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const qSchema = `"${schema.replace(/"/g, '""')}"`;
+
+function quoteSchema(schemaName: string): string {
+  if (!/^\d{14}$/.test(schemaName)) {
+    throw new Error(`schema_name inválido no tenant_registry: ${schemaName}`);
+  }
+  return `"${schemaName.replace(/"/g, '""')}"`;
+}
+
+async function seedMenusIfEmpty(tx: Prisma.TransactionClient): Promise<void> {
+  const existingMenus = await tx.menu.findFirst();
+  if (existingMenus) {
+    return;
+  }
+  const menus = [
+    {
+      action: '/users',
+      deviceType: 'DESKTOP',
+      displayOrder: 2,
+      icon: 'FaUser',
+      name: 'Usuários',
+      sectionName: null as string | null,
+      tooltip: null as string | null,
+      type: 'CUSTOM_MENU',
+    },
+    {
+      action: '/users',
+      deviceType: 'MOBILE',
+      displayOrder: 2,
+      icon: 'FaUser',
+      name: 'Usuários',
+      sectionName: null,
+      tooltip: null,
+      type: 'CUSTOM_MENU',
+    },
+    {
+      action: '/profiles',
+      deviceType: 'DESKTOP',
+      displayOrder: 3,
+      icon: 'FaUserLock',
+      name: 'Perfis de Acesso',
+      sectionName: null,
+      tooltip: null,
+      type: 'CUSTOM_MENU',
+    },
+    {
+      action: '/profiles',
+      deviceType: 'MOBILE',
+      displayOrder: 3,
+      icon: 'FaUserLock',
+      name: 'Perfis de Acesso',
+      sectionName: null,
+      tooltip: null,
+      type: 'CUSTOM_MENU',
+    },
+  ];
+  for (const menu of menus) {
+    await tx.menu.create({
+      data: {
+        action: menu.action,
+        deviceType: menu.deviceType,
+        displayOrder: menu.displayOrder,
+        icon: menu.icon,
+        name: menu.name,
+        sectionName: menu.sectionName,
+        tooltip: menu.tooltip,
+        type: menu.type,
+        isActive: true,
+      },
+    });
+  }
+}
 
 async function main() {
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${qSchema}, public`);
-
-    let adminProfile = await tx.profile.findFirst({
-      where: { name: 'Administrador Develcode' },
+  const rows = await prisma.$queryRaw<{ schema_name: string }[]>`
+    SELECT schema_name FROM public.tenant_registry ORDER BY schema_name
+  `;
+  if (rows.length === 0) {
+    console.log(
+      'Seed: nenhum tenant em public.tenant_registry. Cadastre empresas via POST /api/v1/auth/register-tenant.',
+    );
+    return;
+  }
+  for (const row of rows) {
+    const schemaName = row.schema_name;
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL search_path TO ${quoteSchema(schemaName)}, public`);
+      await seedMenusIfEmpty(tx);
     });
-
-    if (!adminProfile) {
-      adminProfile = await tx.profile.create({
-        data: {
-          name: 'Administrador Develcode',
-          description: 'Perfil com acesso total ao sistema',
-          isActive: true,
-          isDefault: true,
-          updatedIn: null,
-        },
-      });
-    }
-
-    const federalRegistration = '21.153.354/0001-46';
-
-    let develcodeCompany = await tx.company.findFirst({
-      where: { federalRegistration },
-    });
-
-    if (!develcodeCompany) {
-      develcodeCompany = await tx.company.create({
-        data: {
-          name: 'Develcode',
-          federalRegistration,
-          isActive: true,
-          updatedIn: null,
-        },
-      });
-    }
-
-    const adminEmail = 'admin@develcode.com.br';
-    const existingAdminUser = await tx.user.findFirst({
-      where: { email: adminEmail },
-    });
-
-    if (!existingAdminUser) {
-      const hashedPassword = await bcrypt.hash('Devel@123', 10);
-
-      await tx.user.create({
-        data: {
-          email: adminEmail,
-          fullName: 'Administrador',
-          password: hashedPassword,
-          profileId: adminProfile.id,
-          companyId: develcodeCompany.id,
-          isActive: true,
-        },
-      });
-    }
-
-    const existingMenus = await tx.menu.findFirst();
-    if (!existingMenus) {
-      const menus = [
-        {
-          action: '/users',
-          deviceType: 'DESKTOP',
-          displayOrder: 2,
-          icon: 'FaUser',
-          name: 'Usuários',
-          sectionName: null,
-          tooltip: null,
-          type: 'CUSTOM_MENU',
-        },
-        {
-          action: '/users',
-          deviceType: 'MOBILE',
-          displayOrder: 2,
-          icon: 'FaUser',
-          name: 'Usuários',
-          sectionName: null,
-          tooltip: null,
-          type: 'CUSTOM_MENU',
-        },
-        {
-          action: '/profiles',
-          deviceType: 'DESKTOP',
-          displayOrder: 3,
-          icon: 'FaUserLock',
-          name: 'Perfis de Acesso',
-          sectionName: null,
-          tooltip: null,
-          type: 'CUSTOM_MENU',
-        },
-        {
-          action: '/profiles',
-          deviceType: 'MOBILE',
-          displayOrder: 3,
-          icon: 'FaUserLock',
-          name: 'Perfis de Acesso',
-          sectionName: null,
-          tooltip: null,
-          type: 'CUSTOM_MENU',
-        },
-      ];
-
-      for (const menu of menus) {
-        await tx.menu.create({
-          data: {
-            action: menu.action,
-            deviceType: menu.deviceType,
-            displayOrder: menu.displayOrder,
-            icon: menu.icon,
-            name: menu.name,
-            sectionName: menu.sectionName,
-            tooltip: menu.tooltip,
-            type: menu.type,
-            isActive: true,
-          },
-        });
-      }
-    }
-  });
+    console.log(`Seed: menus verificados no tenant ${schemaName}.`);
+  }
 }
 
 main()
-  .catch((e) => {
+  .catch(() => {
     process.exit(1);
   })
   .finally(async () => {

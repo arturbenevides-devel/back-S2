@@ -39,7 +39,6 @@ Crie um `.env`:
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/postgres?schema=public"
-SEED_TENANT_SCHEMA="00000000000000"
 JWT_SECRET="your-super-secret-jwt-key-here"
 JWT_EXPIRES_IN="24h"
 PORT=3000
@@ -75,10 +74,10 @@ npm run prisma:deploy
 npm run tenants:migrate
 ```
 
-3) Seed em um tenant específico (opcional):
+3) Seed (SaaS): percorre todos os registros de `public.tenant_registry` e, em cada schema, garante os menus padrão se ainda não existir nenhum. Se não houver tenant cadastrado, não faz nada além de logar instrução.
 
 ```bash
-SEED_TENANT_SCHEMA=12345678000199 npm run prisma:seed
+npm run prisma:seed
 ```
 
 ## Executar API
