@@ -97,10 +97,3 @@ ALTER TABLE "user_password_reset_request" ADD CONSTRAINT "user_password_reset_re
 ALTER TABLE "profile_permissions" ADD CONSTRAINT "profile_permissions_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "profile_permissions" ADD CONSTRAINT "profile_permissions_menu_id_fkey" FOREIGN KEY ("menu_id") REFERENCES "menus"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
-CREATE TABLE "_tenant_migration_log" (
-    "folder" TEXT NOT NULL,
-    "applied_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "_tenant_migration_log_pkey" PRIMARY KEY ("folder")
-);

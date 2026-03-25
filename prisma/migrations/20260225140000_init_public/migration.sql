@@ -1,0 +1,18 @@
+CREATE TABLE "public"."tenant_registry" (
+    "id" TEXT NOT NULL,
+    "schema_name" VARCHAR(14) NOT NULL,
+    "company_name" VARCHAR(255) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "tenant_registry_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX "tenant_registry_schema_name_key" ON "public"."tenant_registry"("schema_name");
+
+CREATE TABLE "public"."tenant_migration_log" (
+    "schema_name" VARCHAR(14) NOT NULL,
+    "folder" TEXT NOT NULL,
+    "applied_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "tenant_migration_log_pkey" PRIMARY KEY ("schema_name", "folder")
+);

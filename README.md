@@ -17,14 +17,16 @@ common/
   tenant/    infraestrutura multi-tenant
 prisma/
   schema.prisma
-  migrations/
+  migrations/          migrations Prisma (histórico + limpeza do public)
+  tenant-migrations/   SQL aplicado só nos schemas de tenant (CNPJ)
 ```
 
 ## Multi-tenant (PostgreSQL por schema)
 
 - Cada empresa usa um schema próprio no Postgres.
 - O nome do schema é o CNPJ com 14 dígitos (somente números).
-- Existe um registro central em `public.tenant_registry`.
+- Em `public` ficam apenas: `tenant_registry`, `tenant_migration_log` (controle de qual SQL já rodou em cada tenant) e `_prisma_migrations` (tabela interna do Prisma Migrate — não remover).
+- O DDL de domínio (`companies`, `users`, etc.) existe só dentro de cada schema de tenant; os arquivos ficam em `prisma/tenant-migrations/`.
 - O login inclui `cnpj`; o JWT inclui `tenantSchema`.
 - Em requests autenticadas, o backend lê `tenantSchema` do token e executa queries no schema do tenant.
 
@@ -62,17 +64,19 @@ npm install
 
 ## Banco de dados
 
-1) Aplicar migrations no `public`:
+1) Aplicar a migration Prisma em `public` (só `tenant_registry`, `tenant_migration_log` e `_prisma_migrations`):
 
 ```bash
 npm run prisma:deploy
 ```
 
-2) Aplicar migrations em todos os tenants já cadastrados:
+2) Aplicar o conteúdo de `prisma/tenant-migrations/*` em cada schema listado em `tenant_registry`:
 
 ```bash
 npm run tenants:migrate
 ```
+
+Ordem: **`prisma:deploy` antes de `tenants:migrate`**.
 
 3) Seed (SaaS): percorre todos os registros de `public.tenant_registry` e, em cada schema, garante os menus padrão se ainda não existir nenhum. Se não houver tenant cadastrado, não faz nada além de logar instrução.
 
@@ -88,6 +92,45 @@ npm run start:dev
 
 - API: `http://localhost:3000/api/v1`
 - Swagger: `http://localhost:3000/api`
+
+## Azure Web App (App Service)
+
+### Comando de inicialização (Startup Command)
+
+No portal: **Configuração** → **Configurações gerais** → **Comando de Inicialização**, use:
+
+```bash
+npm run start:prod
+```
+
+Equivalente direto:
+
+```bash
+node dist/apps/server/main
+```
+
+Defina também **PORT** nas configurações da aplicação: o App Service injeta `PORT` (em geral `8080`). A API deve escutar `process.env.PORT` (já é o padrão do Nest com `main.ts` usando `process.env.PORT || 3000`).
+
+### Variáveis de ambiente (Application settings)
+
+Configure pelo menos: `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `NODE_ENV=production`, e as variáveis de e-mail / `FRONTEND_URL` conforme o ambiente.
+
+O pipeline deste repositório usa `SCM_DO_BUILD_DURING_DEPLOYMENT=true` e `WEBSITE_NODE_DEFAULT_VERSION=~20`: na implantação o Oryx executa `npm install` no pacote publicado (com `package.json`, `package-lock.json`, `dist/` e `prisma/`).
+
+### Migrations e tenants (recomendado no pipeline, não no startup)
+
+Rodar `prisma migrate deploy` e `tenants:migrate` a **cada subida do container** pode causar lentidão, corrida entre instâncias e falhas intermitentes. O ideal é executar no **Azure DevOps** (ou etapa de release) em um job que tenha **acesso de rede ao PostgreSQL**, usando o mesmo `DATABASE_URL`:
+
+```bash
+npm ci
+npx prisma generate
+npx prisma migrate deploy
+npm run tenants:migrate
+```
+
+Ordem típica no release: **build do artefato** → **migrations + tenants:migrate** (com `DATABASE_URL` do Key Vault / variável do pipeline) → **deploy do zip no Web App** → o Web App só sobe a API com **`npm run start:prod`**.
+
+Se ainda não houver nenhum tenant em `tenant_registry`, `npm run tenants:migrate` não aplica nada nos schemas de tenant e pode ser executado assim mesmo.
 
 ## Fluxo de autenticação multi-tenant
 

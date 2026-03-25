@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as path from 'path';
 import {
   provisionTenantSchemasFromMigrations,
   migrateAllRegisteredTenants,
+  resolveTenantMigrationsDir,
 } from './migrate-tenants.util';
 
 @Injectable()
@@ -18,19 +18,19 @@ export class TenantMigrationService {
     return url;
   }
 
-  private getMigrationsDir(): string {
-    return path.join(process.cwd(), 'prisma', 'migrations');
+  private getTenantMigrationsDir(): string {
+    return resolveTenantMigrationsDir(process.cwd());
   }
 
   async provisionNewTenant(schemaName: string): Promise<void> {
     await provisionTenantSchemasFromMigrations(
       this.getConnectionString(),
       schemaName,
-      this.getMigrationsDir(),
+      this.getTenantMigrationsDir(),
     );
   }
 
   async migrateAllExistingTenants(): Promise<void> {
-    await migrateAllRegisteredTenants(this.getConnectionString(), this.getMigrationsDir());
+    await migrateAllRegisteredTenants(this.getConnectionString(), this.getTenantMigrationsDir());
   }
 }
