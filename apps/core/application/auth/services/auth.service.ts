@@ -26,7 +26,7 @@ export class AuthService {
     }
 
     return runWithTenantSchema(loginDto.cnpj, async () => {
-      const user = await this.userRepository.findByEmail(loginDto.email);
+      const user = await this.userRepository.findByEmailIncludingInactive(loginDto.email);
 
       if (!user) {
         throw new UnauthorizedException('Credenciais inválidas');

@@ -147,6 +147,9 @@ export class ProfileRepository implements IProfileRepository {
 
   async delete(id: string): Promise<void> {
     return this.run(async (tx) => {
+      await tx.profilePermission.deleteMany({
+        where: { profileId: id },
+      });
       await tx.profile.delete({
         where: { id },
       });
@@ -156,10 +159,7 @@ export class ProfileRepository implements IProfileRepository {
   async findAll(): Promise<Profile[]> {
     return this.run(async (tx) => {
       const profiles = await tx.profile.findMany({
-        where: {
-          isDefault: false,
-        },
-        orderBy: { createdIn: 'desc' },
+        orderBy: [{ isDefault: 'desc' }, { createdIn: 'desc' }],
       });
 
       return profiles.map((profile) =>

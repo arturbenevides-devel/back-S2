@@ -155,7 +155,11 @@ export class ProfilesController {
   @AccessControl({ permissions: { delete: true } })
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remover perfil' })
+  @ApiOperation({
+    summary: 'Excluir perfil permanentemente',
+    description:
+      'Remove o registro do perfil e suas permissões na base. Não é possível excluir o perfil padrão nem perfis com usuários vinculados. Para ativar/desativar sem apagar, use POST /profiles/status.',
+  })
   @ApiParam({
     name: 'id',
     description: 'ID único do perfil',
