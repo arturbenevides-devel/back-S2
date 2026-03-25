@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, Inject } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, Inject, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { ProfilePermissionRepository } from '@common/domain/profile-permissions/repositories/profile-permission.repository.interface';
@@ -6,6 +6,8 @@ import { ProfileRepository } from '@common/domain/profiles/repositories/profile.
 import { AccessControlOptions } from '@common/utils/decorators/access-control.decorator';
 import { AccessDeniedException } from '@common/utils/exceptions/auth.exceptions';
 import { ADMIN_ONLY_KEY } from '@common/utils/decorators/admin-only.decorator';
+import { runWithTenantSchema } from '@common/tenant/tenant-schema.storage';
+import { isValidCnpjDigits } from '@common/utils/cnpj.util';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -19,49 +21,55 @@ export class PermissionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const user = request['user'] as any;
+    const user = request['user'] as { tenantSchema?: string; profileId?: string } | undefined;
 
-    if (!user || !user.profileId) {
-      throw new AccessDeniedException('acessar', 'este recurso');
+    if (
+      !user?.tenantSchema ||
+      typeof user.tenantSchema !== 'string' ||
+      !isValidCnpjDigits(user.tenantSchema)
+    ) {
+      throw new UnauthorizedException('Token inválido: refaça o login informando o CNPJ da empresa');
     }
 
-    // Verificar se o perfil é isDefault (acesso total)
-    const profile = await this.profileRepository.findById(user.profileId);
-    if (profile && profile.isDefault) {
-      return true; // Perfil padrão tem acesso total
-    }
+    return runWithTenantSchema(user.tenantSchema, async () => {
+      if (!user.profileId) {
+        throw new AccessDeniedException('acessar', 'este recurso');
+      }
 
-    // Verificar se o endpoint é exclusivo de admin
-    const isAdminOnly = this.reflector.get<boolean>(ADMIN_ONLY_KEY, context.getHandler());
-    if (isAdminOnly) {
-      throw new AccessDeniedException('acessar', 'este recurso');
-    }
+      const profile = await this.profileRepository.findById(user.profileId);
+      if (profile && profile.isDefault) {
+        return true;
+      }
 
-    const accessControl = this.reflector.get<AccessControlOptions>('access-control', context.getHandler());
-    
-    if (!accessControl) {
-      return true; // Se não há controle de acesso definido, permite
-    }
+      const isAdminOnly = this.reflector.get<boolean>(ADMIN_ONLY_KEY, context.getHandler());
+      if (isAdminOnly) {
+        throw new AccessDeniedException('acessar', 'este recurso');
+      }
 
-    const controller = this.getControllerName(context);
-    const action = this.getActionFromMethod(request.method, context);
+      const accessControl = this.reflector.get<AccessControlOptions>('access-control', context.getHandler());
 
-    // Buscar permissões do perfil para o controller
-    const permission = await this.profilePermissionRepository.findByProfileIdAndController(
-      user.profileId,
-      controller,
-    );
+      if (!accessControl) {
+        return true;
+      }
 
-    if (!permission) {
-      throw new AccessDeniedException(action, controller);
-    }
+      const controller = this.getControllerName(context);
+      const action = this.getActionFromMethod(request.method, context);
 
-    // Verificar se tem permissão para a ação específica
-    if (!permission.hasPermission(action)) {
-      throw new AccessDeniedException(action, controller);
-    }
+      const permission = await this.profilePermissionRepository.findByProfileIdAndController(
+        user.profileId,
+        controller,
+      );
 
-    return true;
+      if (!permission) {
+        throw new AccessDeniedException(action, controller);
+      }
+
+      if (!permission.hasPermission(action)) {
+        throw new AccessDeniedException(action, controller);
+      }
+
+      return true;
+    });
   }
 
   private getControllerName(context: ExecutionContext): string {

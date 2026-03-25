@@ -7,6 +7,10 @@ export function runWithTenantSchema<T>(schema: string, fn: () => Promise<T>): Pr
   return storage.run(schema, fn);
 }
 
+export function setTenantSchema(schema: string): void {
+  storage.enterWith(schema);
+}
+
 export function getTenantSchemaOrNull(): string | undefined {
   return storage.getStore();
 }
@@ -18,3 +22,4 @@ export function getRequiredTenantSchema(): string {
   }
   return s;
 }
+ 

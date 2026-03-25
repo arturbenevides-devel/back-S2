@@ -95,6 +95,31 @@ export class UserRepository implements IUserRepository {
     });
   }
 
+  async findByEmailIncludingInactive(email: string): Promise<User | null> {
+    return this.run(async (tx) => {
+      const user = await tx.user.findFirst({
+        where: { email },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      return User.fromDatabase(
+        user.email,
+        user.fullName,
+        user.password,
+        user.profileId,
+        user.id,
+        user.createdIn,
+        user.isActive,
+        user.updatedIn,
+        user.profileImage || undefined,
+        user.companyId || undefined,
+      );
+    });
+  }
+
   async save(user: User): Promise<User> {
     return this.run(async (tx) => {
       const createdUser = await tx.user.create({
@@ -198,5 +223,13 @@ export class UserRepository implements IUserRepository {
         ),
       );
     });
+  }
+
+  async countByProfileId(profileId: string): Promise<number> {
+    return this.run(async (tx) =>
+      tx.user.count({
+        where: { profileId },
+      }),
+    );
   }
 }
