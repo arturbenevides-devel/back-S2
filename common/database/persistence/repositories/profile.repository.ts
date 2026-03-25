@@ -156,10 +156,7 @@ export class ProfileRepository implements IProfileRepository {
   async findAll(): Promise<Profile[]> {
     return this.run(async (tx) => {
       const profiles = await tx.profile.findMany({
-        where: {
-          isDefault: false,
-        },
-        orderBy: { createdIn: 'desc' },
+        orderBy: [{ isDefault: 'desc' }, { createdIn: 'desc' }],
       });
 
       return profiles.map((profile) =>
