@@ -5,6 +5,8 @@ import { ProfileRepository } from '@common/domain/profiles/repositories/profile.
 import { LoginDto } from '../dto/login.dto';
 import { AuthResponseDto } from '../dto/auth-response.dto';
 import * as bcrypt from 'bcryptjs';
+import { TenantRegistryService } from '@common/tenant/tenant-registry.service';
+import { runWithTenantSchema } from '@common/tenant/tenant-schema.storage';
 
 @Injectable()
 export class AuthService {
@@ -14,59 +16,64 @@ export class AuthService {
     private readonly userRepository: UserRepository,
     @Inject('ProfileRepository')
     private readonly profileRepository: ProfileRepository,
+    private readonly tenantRegistry: TenantRegistryService,
   ) {}
 
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
-    const user = await this.userRepository.findByEmail(loginDto.email);
-
-    if (!user) {
-      throw new UnauthorizedException('Credenciais inválidas');
+    const registered = await this.tenantRegistry.isRegistered(loginDto.cnpj);
+    if (!registered) {
+      throw new UnauthorizedException('Empresa não encontrada ou não cadastrada');
     }
 
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    return runWithTenantSchema(loginDto.cnpj, async () => {
+      const user = await this.userRepository.findByEmail(loginDto.email);
 
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Credenciais inválidas');
-    }
+      if (!user) {
+        throw new UnauthorizedException('Credenciais inválidas');
+      }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException('Conta não confirmada. Verifique seu email para ativar a conta.');
-    }
+      const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
 
-    const profile = await this.profileRepository.findById(user.profileId);
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Credenciais inválidas');
+      }
 
-    if (!profile) {
-      throw new UnauthorizedException('Perfil não encontrado');
-    }
+      if (!user.isActive) {
+        throw new UnauthorizedException(
+          'Conta não confirmada. Verifique seu email para ativar a conta.',
+        );
+      }
 
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      profileId: user.profileId,
-      profileName: profile.name,
-    };
+      const profile = await this.profileRepository.findById(user.profileId);
 
-    const accessToken = this.jwtService.sign(payload);
+      if (!profile) {
+        throw new UnauthorizedException('Perfil não encontrado');
+      }
 
-    return {
-      accessToken,
-      tokenType: 'Bearer',
-      expiresIn: 86400, // 24 horas
-      user: {
-        id: user.id,
+      const payload = {
+        sub: user.id,
         email: user.email,
         fullName: user.fullName,
         profileId: user.profileId,
         profileName: profile.name,
-        profileIsDefault: profile.isDefault,
-      },
-    };
+        tenantSchema: loginDto.cnpj,
+      };
+
+      const accessToken = this.jwtService.sign(payload);
+
+      return {
+        accessToken,
+        tokenType: 'Bearer',
+        expiresIn: 86400,
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          profileId: user.profileId,
+          profileName: profile.name,
+          profileIsDefault: profile.isDefault,
+        },
+      };
+    });
   }
 }
-
-
-
-
-
-

@@ -1,12 +1,15 @@
-import { Controller, Post, Body, Param, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { Controller, Post, Body, Param, Query, HttpCode, HttpStatus, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { AuthService } from '@apps/core/application/auth/services/auth.service';
 import { LoginDto } from '@apps/core/application/auth/dto/login.dto';
 import { AuthResponseDto } from '@apps/core/application/auth/dto/auth-response.dto';
 import { FirstAccessDto } from '@apps/core/application/auth/dto/first-access.dto';
+import { RegisterTenantDto } from '@apps/core/application/auth/dto/register-tenant.dto';
 import { ValidateResetTokenUseCase } from '@apps/core/application/auth/use-cases/validate-reset-token.use-case';
 import { FirstAccessUseCase } from '@apps/core/application/auth/use-cases/first-access.use-case';
 import { ChangePasswordByTokenUseCase } from '@apps/core/application/auth/use-cases/change-password-by-token.use-case';
+import { RegisterTenantUseCase } from '@apps/core/application/auth/use-cases/register-tenant.use-case';
+import { normalizeTenantSchemaCnpj } from '@common/utils/cnpj.util';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -16,6 +19,7 @@ export class AuthController {
     private readonly validateResetTokenUseCase: ValidateResetTokenUseCase,
     private readonly firstAccessUseCase: FirstAccessUseCase,
     private readonly changePasswordByTokenUseCase: ChangePasswordByTokenUseCase,
+    private readonly registerTenantUseCase: RegisterTenantUseCase,
   ) {}
 
   @Post('login')
@@ -38,6 +42,15 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Post('register-tenant')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Cadastrar nova empresa (schema = CNPJ) e usuário administrador' })
+  @ApiResponse({ status: 201, description: 'Cadastro criado' })
+  @ApiResponse({ status: 409, description: 'Empresa já cadastrada' })
+  async registerTenant(@Body() dto: RegisterTenantDto): Promise<{ message: string }> {
+    return this.registerTenantUseCase.execute(dto);
+  }
+
   @Post('validate-reset-token/:token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Validar token de ativação/recuperação e retornar e-mail e se é primeiro acesso' })
@@ -56,10 +69,15 @@ export class AuthController {
   })
   @ApiResponse({ status: 404, description: 'Token não encontrado' })
   @ApiResponse({ status: 400, description: 'Token inválido ou expirado' })
+  @ApiQuery({ name: 'cnpj', required: true, description: 'CNPJ da empresa (14 dígitos)' })
   async validateResetToken(
     @Param('token') token: string,
+    @Query('cnpj') cnpj: string,
   ): Promise<{ userId: string; email: string; firstAccess: boolean }> {
-    return this.validateResetTokenUseCase.execute(token);
+    if (!cnpj) {
+      throw new BadRequestException('Informe o query param cnpj');
+    }
+    return this.validateResetTokenUseCase.execute(token, normalizeTenantSchemaCnpj(cnpj));
   }
 
   @Post('first-access')

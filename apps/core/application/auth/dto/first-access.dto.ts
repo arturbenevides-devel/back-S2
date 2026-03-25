@@ -1,5 +1,5 @@
-import { IsEmail, IsString, MinLength, IsObject, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEmail, IsString, MinLength, IsObject, ValidateNested, Length } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 class AuthDto {
@@ -14,6 +14,12 @@ class AuthDto {
 }
 
 export class FirstAccessDto {
+  @ApiProperty({ description: 'CNPJ da empresa (14 dígitos)' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\D/g, '') : value))
+  @IsString()
+  @Length(14, 14, { message: 'CNPJ deve ter 14 dígitos' })
+  cnpj: string;
+
   @ApiProperty({ type: AuthDto })
   @IsObject()
   @ValidateNested()

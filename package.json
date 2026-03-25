@@ -27,7 +27,8 @@
     "prisma:reset": "prisma migrate reset",
     "prisma:status": "prisma migrate status",
     "prisma:seed": "npx ts-node prisma/seed.ts",
-    "prisma:setup": "npm run prisma:migrate && npm run prisma:seed"
+    "prisma:setup": "npm run prisma:migrate && npm run prisma:seed",
+    "tenants:migrate": "npx ts-node scripts/migrate-all-tenants.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -45,6 +46,7 @@
     "nodemailer": "^6.9.8",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
+    "pg": "^8.20.0",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1"
   },
@@ -59,6 +61,7 @@
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^6.4.14",
     "@types/passport-jwt": "^4.0.1",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",

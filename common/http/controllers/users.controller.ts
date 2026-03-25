@@ -11,6 +11,7 @@ import {
   UseGuards,
   Request,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from '@apps/core/application/users/services/user.service';
@@ -23,6 +24,7 @@ import { JwtAuthGuard } from '../guards/jwt-auth.guard';
 import { PermissionGuard } from '../guards/permission.guard';
 import { AccessControl } from '@common/utils/decorators/access-control.decorator';
 import { ConfirmEmailUseCase } from '@apps/core/application/users/use-cases/confirm-email.use-case';
+import { normalizeTenantSchemaCnpj } from '@common/utils/cnpj.util';
 
 @ApiTags('users')
 @Controller('users')
@@ -79,8 +81,14 @@ export class UsersController {
     status: 400,
     description: 'Token de confirmação inválido ou expirado',
   })
-  async confirmEmail(@Query('token') token: string): Promise<{ success: boolean; message: string }> {
-    return this.confirmEmailUseCase.execute(token);
+  async confirmEmail(
+    @Query('token') token: string,
+    @Query('cnpj') cnpj: string,
+  ): Promise<{ success: boolean; message: string }> {
+    if (!cnpj) {
+      throw new BadRequestException('Informe o query param cnpj');
+    }
+    return this.confirmEmailUseCase.execute(token, normalizeTenantSchemaCnpj(cnpj));
   }
 
   @Get()

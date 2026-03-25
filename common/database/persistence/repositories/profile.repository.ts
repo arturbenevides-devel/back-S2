@@ -1,147 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 import { ProfileRepository as IProfileRepository } from '@common/domain/profiles/repositories/profile.repository.interface';
 import { Profile } from '@common/domain/profiles/entities/profile.entity';
 import { ProfilePermission } from '@common/domain/profile-permissions/entities/profile-permission.entity';
 import { DateUtil } from '@common/utils/date.util';
+import { TenantPrismaRunner } from '@common/tenant/tenant-prisma.runner';
+import { getRequiredTenantSchema } from '@common/tenant/tenant-schema.storage';
 
 @Injectable()
 export class ProfileRepository implements IProfileRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly runner: TenantPrismaRunner) {}
+
+  private run<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.runner.run(getRequiredTenantSchema(), fn);
+  }
 
   async findById(id: string): Promise<Profile | null> {
-    const profile = await this.prisma.profile.findFirst({
-      where: {
-        id,
-        isActive: true,
-      },
-    });
+    return this.run(async (tx) => {
+      const profile = await tx.profile.findFirst({
+        where: {
+          id,
+          isActive: true,
+        },
+      });
 
-    if (!profile) {
-      return null;
-    }
+      if (!profile) {
+        return null;
+      }
 
-    return Profile.create(
-      profile.name,
-      profile.description,
-      profile.isDefault,
-      profile.id,
-      profile.createdIn,
-      profile.isActive,
-      profile.updatedIn,
-    );
-  }
-
-  async findByIdIncludingInactive(id: string): Promise<Profile | null> {
-    const profile = await this.prisma.profile.findFirst({
-      where: { id },
-    });
-
-    if (!profile) {
-      return null;
-    }
-
-    return Profile.create(
-      profile.name,
-      profile.description,
-      profile.isDefault,
-      profile.id,
-      profile.createdIn,
-      profile.isActive,
-      profile.updatedIn,
-    );
-  }
-
-  async updateIsActive(profileId: string, isActive: boolean): Promise<void> {
-    await this.prisma.profile.update({
-      where: { id: profileId },
-      data: { isActive, updatedIn: DateUtil.now() },
-    });
-  }
-
-  async findByName(name: string): Promise<Profile | null> {
-    const profile = await this.prisma.profile.findFirst({
-      where: { 
-        name,
-        isActive: true, // Apenas perfis ativos
-      },
-    });
-
-    if (!profile) {
-      return null;
-    }
-
-    return Profile.create(
-      profile.name,
-      profile.description,
-      profile.isDefault,
-      profile.id,
-      profile.createdIn,
-      profile.isActive,
-      profile.updatedIn,
-    );
-  }
-
-  async save(profile: Profile): Promise<Profile> {
-    const createdProfile = await this.prisma.profile.create({
-      data: {
-        name: profile.name,
-        description: profile.description,
-        createdIn: profile.createdIn,
-        isActive: profile.isActive,
-        updatedIn: profile.updatedIn,
-      },
-    });
-
-    return Profile.create(
-      createdProfile.name,
-      createdProfile.description,
-      createdProfile.isDefault,
-      createdProfile.id,
-      createdProfile.createdIn,
-      createdProfile.isActive,
-      createdProfile.updatedIn,
-    );
-  }
-
-  async update(profile: Profile): Promise<Profile> {
-    const updatedProfile = await this.prisma.profile.update({
-      where: { id: profile.id },
-      data: {
-        name: profile.name,
-        description: profile.description,
-        isActive: profile.isActive,
-        updatedIn: profile.updatedIn,
-      },
-    });
-
-    return Profile.create(
-      updatedProfile.name,
-      updatedProfile.description,
-      updatedProfile.isDefault,
-      updatedProfile.id,
-      updatedProfile.createdIn,
-      updatedProfile.isActive,
-      updatedProfile.updatedIn,
-    );
-  }
-
-  async delete(id: string): Promise<void> {
-    await this.prisma.profile.delete({
-      where: { id },
-    });
-  }
-
-  async findAll(): Promise<Profile[]> {
-    const profiles = await this.prisma.profile.findMany({
-      where: {
-        isDefault: false, // Não retornar perfil padrão do sistema na listagem; ativos e inativos
-      },
-      orderBy: { createdIn: 'desc' },
-    });
-
-    return profiles.map(profile =>
-      Profile.create(
+      return Profile.create(
         profile.name,
         profile.description,
         profile.isDefault,
@@ -149,13 +36,68 @@ export class ProfileRepository implements IProfileRepository {
         profile.createdIn,
         profile.isActive,
         profile.updatedIn,
-      ),
-    );
+      );
+    });
   }
 
-  async saveWithPermissions(profile: Profile, permissions: ProfilePermission[]): Promise<Profile> {
-    return await this.prisma.$transaction(async (tx) => {
-      // Criar perfil
+  async findByIdIncludingInactive(id: string): Promise<Profile | null> {
+    return this.run(async (tx) => {
+      const profile = await tx.profile.findFirst({
+        where: { id },
+      });
+
+      if (!profile) {
+        return null;
+      }
+
+      return Profile.create(
+        profile.name,
+        profile.description,
+        profile.isDefault,
+        profile.id,
+        profile.createdIn,
+        profile.isActive,
+        profile.updatedIn,
+      );
+    });
+  }
+
+  async updateIsActive(profileId: string, isActive: boolean): Promise<void> {
+    return this.run(async (tx) => {
+      await tx.profile.update({
+        where: { id: profileId },
+        data: { isActive, updatedIn: DateUtil.now() },
+      });
+    });
+  }
+
+  async findByName(name: string): Promise<Profile | null> {
+    return this.run(async (tx) => {
+      const profile = await tx.profile.findFirst({
+        where: {
+          name,
+          isActive: true,
+        },
+      });
+
+      if (!profile) {
+        return null;
+      }
+
+      return Profile.create(
+        profile.name,
+        profile.description,
+        profile.isDefault,
+        profile.id,
+        profile.createdIn,
+        profile.isActive,
+        profile.updatedIn,
+      );
+    });
+  }
+
+  async save(profile: Profile): Promise<Profile> {
+    return this.run(async (tx) => {
       const createdProfile = await tx.profile.create({
         data: {
           name: profile.name,
@@ -167,10 +109,89 @@ export class ProfileRepository implements IProfileRepository {
         },
       });
 
-      // Criar permissões
+      return Profile.create(
+        createdProfile.name,
+        createdProfile.description,
+        createdProfile.isDefault,
+        createdProfile.id,
+        createdProfile.createdIn,
+        createdProfile.isActive,
+        createdProfile.updatedIn,
+      );
+    });
+  }
+
+  async update(profile: Profile): Promise<Profile> {
+    return this.run(async (tx) => {
+      const updatedProfile = await tx.profile.update({
+        where: { id: profile.id },
+        data: {
+          name: profile.name,
+          description: profile.description,
+          isActive: profile.isActive,
+          updatedIn: profile.updatedIn,
+        },
+      });
+
+      return Profile.create(
+        updatedProfile.name,
+        updatedProfile.description,
+        updatedProfile.isDefault,
+        updatedProfile.id,
+        updatedProfile.createdIn,
+        updatedProfile.isActive,
+        updatedProfile.updatedIn,
+      );
+    });
+  }
+
+  async delete(id: string): Promise<void> {
+    return this.run(async (tx) => {
+      await tx.profile.delete({
+        where: { id },
+      });
+    });
+  }
+
+  async findAll(): Promise<Profile[]> {
+    return this.run(async (tx) => {
+      const profiles = await tx.profile.findMany({
+        where: {
+          isDefault: false,
+        },
+        orderBy: { createdIn: 'desc' },
+      });
+
+      return profiles.map((profile) =>
+        Profile.create(
+          profile.name,
+          profile.description,
+          profile.isDefault,
+          profile.id,
+          profile.createdIn,
+          profile.isActive,
+          profile.updatedIn,
+        ),
+      );
+    });
+  }
+
+  async saveWithPermissions(profile: Profile, permissions: ProfilePermission[]): Promise<Profile> {
+    return this.run(async (tx) => {
+      const createdProfile = await tx.profile.create({
+        data: {
+          name: profile.name,
+          description: profile.description,
+          isDefault: profile.isDefault,
+          createdIn: profile.createdIn,
+          isActive: profile.isActive,
+          updatedIn: profile.updatedIn,
+        },
+      });
+
       if (permissions.length > 0) {
         await tx.profilePermission.createMany({
-          data: permissions.map(permission => ({
+          data: permissions.map((permission) => ({
             profileId: createdProfile.id,
             controller: permission.controller,
             canCreate: permission.canCreate,
@@ -198,8 +219,7 @@ export class ProfileRepository implements IProfileRepository {
   }
 
   async updateWithPermissions(profile: Profile, permissions: ProfilePermission[]): Promise<Profile> {
-    return await this.prisma.$transaction(async (tx) => {
-      // Atualizar perfil
+    return this.run(async (tx) => {
       const updatedProfile = await tx.profile.update({
         where: { id: profile.id },
         data: {
@@ -210,7 +230,6 @@ export class ProfileRepository implements IProfileRepository {
         },
       });
 
-      // Upsert permissões (update se existir, create se não existir)
       for (const permission of permissions) {
         await tx.profilePermission.upsert({
           where: {
@@ -256,7 +275,7 @@ export class ProfileRepository implements IProfileRepository {
   }
 
   async transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T> {
-    return await this.prisma.$transaction(async (tx) => {
+    return this.run(async (tx) => {
       const transaction = {
         profileRepository: {
           save: async (profile: Profile) => {
@@ -354,6 +373,3 @@ export class ProfileRepository implements IProfileRepository {
     });
   }
 }
-
-
-

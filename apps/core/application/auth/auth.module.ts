@@ -8,6 +8,7 @@ import { PrismaModule } from '@common/database/persistence/prisma.module';
 import { ValidateResetTokenUseCase } from './use-cases/validate-reset-token.use-case';
 import { FirstAccessUseCase } from './use-cases/first-access.use-case';
 import { ChangePasswordByTokenUseCase } from './use-cases/change-password-by-token.use-case';
+import { RegisterTenantUseCase } from './use-cases/register-tenant.use-case';
 
 @Module({
   imports: [PrismaModule],
@@ -17,6 +18,7 @@ import { ChangePasswordByTokenUseCase } from './use-cases/change-password-by-tok
     ValidateResetTokenUseCase,
     FirstAccessUseCase,
     ChangePasswordByTokenUseCase,
+    RegisterTenantUseCase,
     {
       provide: 'UserRepository',
       useClass: UserRepository,

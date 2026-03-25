@@ -1,7 +1,7 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { InvalidTokenException, ExpiredTokenException, UnauthorizedException } from '@common/utils/exceptions/auth.exceptions';
+import { InvalidTokenException, ExpiredTokenException } from '@common/utils/exceptions/auth.exceptions';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -16,11 +16,20 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync(token);
+      const payload = (await this.jwtService.verifyAsync(token)) as {
+        tenantSchema?: string;
+      };
+      if (!payload.tenantSchema || typeof payload.tenantSchema !== 'string') {
+        throw new UnauthorizedException('Token inválido: refaça o login informando o CNPJ da empresa');
+      }
       request['user'] = payload;
       return true;
-    } catch (error) {
-      if (error.name === 'TokenExpiredError') {
+    } catch (error: unknown) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      const name = error && typeof error === 'object' && 'name' in error ? String((error as { name: string }).name) : '';
+      if (name === 'TokenExpiredError') {
         throw new ExpiredTokenException();
       }
       throw new InvalidTokenException();
@@ -32,6 +41,3 @@ export class JwtAuthGuard implements CanActivate {
     return type === 'Bearer' ? token : undefined;
   }
 }
-
-
-

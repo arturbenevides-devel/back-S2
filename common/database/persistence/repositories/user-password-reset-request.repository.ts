@@ -1,81 +1,96 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma.service';
+import { Prisma } from '@prisma/client';
 import { UserPasswordResetRequest } from '@common/domain/users/entities/user-password-reset-request.entity';
 import { UserPasswordResetRequestRepository } from '@common/domain/users/repositories/user-password-reset-request.repository.interface';
+import { TenantPrismaRunner } from '@common/tenant/tenant-prisma.runner';
+import { getRequiredTenantSchema } from '@common/tenant/tenant-schema.storage';
 
 @Injectable()
 export class UserPasswordResetRequestRepositoryImpl implements UserPasswordResetRequestRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly runner: TenantPrismaRunner) {}
+
+  private run<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.runner.run(getRequiredTenantSchema(), fn);
+  }
 
   async save(resetRequest: UserPasswordResetRequest): Promise<UserPasswordResetRequest> {
-    const created = await this.prisma.userPasswordResetRequest.create({
-      data: {
-        resetToken: resetRequest.resetToken,
-        expiresIn: resetRequest.expiresIn,
-        isUsed: resetRequest.isUsed,
-        requestIn: resetRequest.requestIn,
-        userId: resetRequest.userId,
-      },
-    });
+    return this.run(async (tx) => {
+      const created = await tx.userPasswordResetRequest.create({
+        data: {
+          resetToken: resetRequest.resetToken,
+          expiresIn: resetRequest.expiresIn,
+          isUsed: resetRequest.isUsed,
+          requestIn: resetRequest.requestIn,
+          userId: resetRequest.userId,
+        },
+      });
 
-    return UserPasswordResetRequest.fromDatabase(created);
+      return UserPasswordResetRequest.fromDatabase(created);
+    });
   }
 
   async findByResetToken(resetToken: string): Promise<UserPasswordResetRequest | null> {
-    const resetRequest = await this.prisma.userPasswordResetRequest.findUnique({
-      where: { resetToken },
+    return this.run(async (tx) => {
+      const resetRequest = await tx.userPasswordResetRequest.findUnique({
+        where: { resetToken },
+      });
+
+      if (!resetRequest) {
+        return null;
+      }
+
+      return UserPasswordResetRequest.fromDatabase(resetRequest);
     });
-
-    if (!resetRequest) {
-      return null;
-    }
-
-    return UserPasswordResetRequest.fromDatabase(resetRequest);
   }
 
   async findByToken(token: string): Promise<UserPasswordResetRequest | null> {
-    const resetRequest = await this.prisma.userPasswordResetRequest.findUnique({
-      where: { resetToken: token },
+    return this.run(async (tx) => {
+      const resetRequest = await tx.userPasswordResetRequest.findUnique({
+        where: { resetToken: token },
+      });
+
+      if (!resetRequest) {
+        return null;
+      }
+
+      return UserPasswordResetRequest.fromDatabase(resetRequest);
     });
-
-    if (!resetRequest) {
-      return null;
-    }
-
-    return UserPasswordResetRequest.fromDatabase(resetRequest);
   }
 
   async findByUserId(userId: string): Promise<UserPasswordResetRequest[]> {
-    const resetRequests = await this.prisma.userPasswordResetRequest.findMany({
-      where: { userId },
-      orderBy: { requestIn: 'desc' },
-    });
+    return this.run(async (tx) => {
+      const resetRequests = await tx.userPasswordResetRequest.findMany({
+        where: { userId },
+        orderBy: { requestIn: 'desc' },
+      });
 
-    return resetRequests.map(resetRequest => 
-      UserPasswordResetRequest.fromDatabase(resetRequest)
-    );
+      return resetRequests.map((resetRequest) =>
+        UserPasswordResetRequest.fromDatabase(resetRequest),
+      );
+    });
   }
 
   async update(resetRequest: UserPasswordResetRequest): Promise<UserPasswordResetRequest> {
-    const updated = await this.prisma.userPasswordResetRequest.update({
-      where: { resetToken: resetRequest.resetToken },
-      data: {
-        expiresIn: resetRequest.expiresIn,
-        isUsed: resetRequest.isUsed,
-        requestIn: resetRequest.requestIn,
-        userId: resetRequest.userId,
-      },
-    });
+    return this.run(async (tx) => {
+      const updated = await tx.userPasswordResetRequest.update({
+        where: { resetToken: resetRequest.resetToken },
+        data: {
+          expiresIn: resetRequest.expiresIn,
+          isUsed: resetRequest.isUsed,
+          requestIn: resetRequest.requestIn,
+          userId: resetRequest.userId,
+        },
+      });
 
-    return UserPasswordResetRequest.fromDatabase(updated);
+      return UserPasswordResetRequest.fromDatabase(updated);
+    });
   }
 
   async deleteByUserId(userId: string): Promise<void> {
-    await this.prisma.userPasswordResetRequest.deleteMany({
-      where: { userId },
+    return this.run(async (tx) => {
+      await tx.userPasswordResetRequest.deleteMany({
+        where: { userId },
+      });
     });
   }
 }
-
-
-
