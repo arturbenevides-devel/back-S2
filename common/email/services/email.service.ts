@@ -100,14 +100,23 @@ export class EmailService {
     }
   }
 
-  async sendWelcomeEmail(to: string, userName: string, confirmationToken: string): Promise<boolean> {
+  async sendWelcomeEmail(
+    to: string,
+    userName: string,
+    confirmationToken: string,
+    tenantCnpjDigits?: string,
+  ): Promise<boolean> {
+    const base = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const path = `/activate/${confirmationToken}`;
+    const query =
+      tenantCnpjDigits && /^\d{14}$/.test(tenantCnpjDigits) ? `?cnpj=${tenantCnpjDigits}` : '';
     return this.sendEmail({
       to,
       subject: 'Bem-vindo ao Develcode Whitelabel',
       template: 'welcome',
       context: {
         userEmail: to,
-        confirmationUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/new-password/${confirmationToken}`,
+        confirmationUrl: `${base}${path}${query}`,
       },
     });
   }

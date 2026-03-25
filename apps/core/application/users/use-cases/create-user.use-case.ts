@@ -10,6 +10,7 @@ import { CreateUserDto } from '../dto/create-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
 import { DateUtil } from '@common/utils/date.util';
 import { EmailService } from '@common/email/services/email.service';
+import { getRequiredTenantSchema } from '@common/tenant/tenant-schema.storage';
 
 @Injectable()
 export class CreateUserUseCase {
@@ -75,14 +76,17 @@ export class CreateUserUseCase {
         await this.emailService.sendWelcomeEmail(
           savedUser.email,
           savedUser.fullName,
-          resetRequest.resetToken
+          resetRequest.resetToken,
+          getRequiredTenantSchema(),
         );
       } catch (error) {
         this.logger.error('Erro ao enviar email de boas-vindas:', error);
         // Não falha a criação do usuário se o email falhar
         this.logger.warn('Usuário criado, mas email não foi enviado. Token de confirmação:');
         this.logger.warn(`Token: ${resetRequest.resetToken}`);
-        this.logger.warn(`URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/new-password/${resetRequest.resetToken}`);
+        this.logger.warn(
+          `URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/activate/${resetRequest.resetToken}`,
+        );
       }
 
       return await this.mapToResponseDto(savedUser);
