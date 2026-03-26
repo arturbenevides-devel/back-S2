@@ -13,6 +13,7 @@ import { SetMyPasswordUseCase } from './use-cases/set-my-password.use-case';
 import { UserRepository } from '@common/database/persistence/repositories/user.repository';
 import { CompanyRepository } from '@common/database/persistence/repositories/company.repository';
 import { UserPasswordResetRequestRepositoryImpl } from '@common/database/persistence/repositories/user-password-reset-request.repository';
+import { TeamRepository } from '@common/database/persistence/repositories/team.repository';
 import { UsersController } from '@common/http/controllers/users.controller';
 import { ProfilePermissionsModule } from '../profile-permissions/profile-permissions.module';
 import { EmailModule } from '@common/email/email.module';
@@ -48,6 +49,10 @@ import { PermissionGuard } from '@common/http/guards/permission.guard';
     {
       provide: 'UserPasswordResetRequestRepository',
       useClass: UserPasswordResetRequestRepositoryImpl,
+    },
+    {
+      provide: 'TeamRepository',
+      useClass: TeamRepository,
     },
   ],
   exports: [UserService],

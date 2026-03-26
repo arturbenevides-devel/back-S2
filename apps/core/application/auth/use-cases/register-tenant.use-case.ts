@@ -56,6 +56,26 @@ const DEFAULT_MENUS = [
     tooltip: null,
     type: 'CUSTOM_MENU',
   },
+  {
+    action: '/teams',
+    deviceType: 'DESKTOP',
+    displayOrder: 4,
+    icon: 'FaUsers',
+    name: 'Equipes',
+    sectionName: null,
+    tooltip: null,
+    type: 'CUSTOM_MENU',
+  },
+  {
+    action: '/teams',
+    deviceType: 'MOBILE',
+    displayOrder: 4,
+    icon: 'FaUsers',
+    name: 'Equipes',
+    sectionName: null,
+    tooltip: null,
+    type: 'CUSTOM_MENU',
+  },
 ];
 
 @Injectable()
@@ -102,8 +122,9 @@ export class RegisterTenantUseCase {
             updatedIn: null,
           },
         });
+        const createdMenus: { id: string; action: string; deviceType: string }[] = [];
         for (const m of DEFAULT_MENUS) {
-          await tx.menu.create({
+          const menu = await tx.menu.create({
             data: {
               action: m.action,
               deviceType: m.deviceType,
@@ -114,6 +135,104 @@ export class RegisterTenantUseCase {
               tooltip: m.tooltip,
               type: m.type,
               isActive: true,
+              updatedIn: null,
+            },
+          });
+          createdMenus.push({ id: menu.id, action: m.action, deviceType: m.deviceType });
+        }
+
+        // Perfis adicionais com permissões granulares
+        const desktopMenus = createdMenus.filter((m) => m.deviceType === 'DESKTOP');
+
+        const gerenteProfile = await tx.profile.create({
+          data: {
+            name: 'Gerente',
+            description: 'Gerencia supervisores e usuários, acesso total a usuários e leitura de perfis',
+            isDefault: false,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+
+        const supervisorProfile = await tx.profile.create({
+          data: {
+            name: 'Supervisor',
+            description: 'Gerencia usuários da equipe, pode criar e editar mas não excluir',
+            isDefault: false,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+
+        const operadorProfile = await tx.profile.create({
+          data: {
+            name: 'Operador',
+            description: 'Acesso somente leitura, visualiza colegas',
+            isDefault: false,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+
+        for (const menu of desktopMenus) {
+          const controller = menu.action.replace(/^\//, '');
+
+          // Administrador: acesso total
+          await tx.profilePermission.create({
+            data: {
+              profileId: profile.id,
+              menuId: menu.id,
+              controller,
+              canCreate: true,
+              canUpdate: true,
+              canDelete: true,
+              canFind: true,
+              canFindAll: true,
+              updatedIn: null,
+            },
+          });
+
+          // Gerente: CRUD em users e teams, leitura em profiles
+          await tx.profilePermission.create({
+            data: {
+              profileId: gerenteProfile.id,
+              menuId: menu.id,
+              controller,
+              canCreate: controller === 'users' || controller === 'teams',
+              canUpdate: controller === 'users' || controller === 'teams',
+              canDelete: controller === 'users' || controller === 'teams',
+              canFind: true,
+              canFindAll: true,
+              updatedIn: null,
+            },
+          });
+
+          // Supervisor: cria e edita users, leitura em teams, sem excluir
+          await tx.profilePermission.create({
+            data: {
+              profileId: supervisorProfile.id,
+              menuId: menu.id,
+              controller,
+              canCreate: controller === 'users',
+              canUpdate: controller === 'users',
+              canDelete: false,
+              canFind: true,
+              canFindAll: true,
+              updatedIn: null,
+            },
+          });
+
+          // Operador: somente leitura em users
+          await tx.profilePermission.create({
+            data: {
+              profileId: operadorProfile.id,
+              menuId: menu.id,
+              controller,
+              canCreate: false,
+              canUpdate: false,
+              canDelete: false,
+              canFind: controller === 'users',
+              canFindAll: controller === 'users',
               updatedIn: null,
             },
           });
