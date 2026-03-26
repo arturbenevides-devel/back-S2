@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
@@ -10,6 +11,8 @@ import { TenantMigrationService } from '@common/tenant/tenant-migration.service'
 import { TenantPrismaRunner } from '@common/tenant/tenant-prisma.runner';
 import { formatCnpjDisplay } from '@common/utils/cnpj.util';
 import { dropTenantSchema } from '@common/tenant/migrate-tenants.util';
+import { DateUtil } from '@common/utils/date.util';
+import { EmailService } from '@common/email/services/email.service';
 import { RegisterTenantDto } from '../dto/register-tenant.dto';
 
 const DEFAULT_MENUS = [
@@ -57,11 +60,14 @@ const DEFAULT_MENUS = [
 
 @Injectable()
 export class RegisterTenantUseCase {
+  private readonly logger = new Logger(RegisterTenantUseCase.name);
+
   constructor(
     private readonly registry: TenantRegistryService,
     private readonly migrationService: TenantMigrationService,
     private readonly runner: TenantPrismaRunner,
     private readonly config: ConfigService,
+    private readonly emailService: EmailService,
   ) {}
 
   async execute(dto: RegisterTenantDto): Promise<{ message: string }> {
@@ -75,6 +81,7 @@ export class RegisterTenantUseCase {
     if (!url) {
       throw new BadRequestException('DATABASE_URL não configurada');
     }
+    let confirmationData: { token: string; email: string; fullName: string } | null = null;
     try {
       await this.migrationService.provisionNewTenant(schemaName);
       await this.runner.run(schemaName, async (tx) => {
@@ -112,24 +119,53 @@ export class RegisterTenantUseCase {
           });
         }
         const hashed = await bcrypt.hash(dto.password, 10);
-        await tx.user.create({
+        const user = await tx.user.create({
           data: {
             email: dto.email,
             fullName: dto.fullName,
             password: hashed,
             profileId: profile.id,
             companyId: company.id,
-            isActive: true,
+            isActive: false,
             updatedIn: null,
           },
         });
+
+        const resetToken = crypto.randomUUID();
+        await tx.userPasswordResetRequest.create({
+          data: {
+            resetToken,
+            expiresIn: DateUtil.addHours(DateUtil.now(), 24),
+            isUsed: false,
+            requestIn: DateUtil.now(),
+            userId: user.id,
+          },
+        });
+
+        confirmationData = { token: resetToken, email: dto.email, fullName: dto.fullName };
       });
       await this.registry.register(schemaName, dto.companyName);
+
+      if (confirmationData) {
+        try {
+          await this.emailService.sendWelcomeEmail(
+            confirmationData.email,
+            confirmationData.fullName,
+            confirmationData.token,
+            schemaName,
+          );
+        } catch (error) {
+          this.logger.error('Erro ao enviar email de confirmação:', error);
+          this.logger.warn(
+            `URL de ativação: ${this.config.get('FRONTEND_URL') || 'http://localhost:8080'}/activate/${confirmationData.token}?cnpj=${schemaName}`,
+          );
+        }
+      }
     } catch (e) {
       await dropTenantSchema(url, schemaName).catch(() => undefined);
       await this.registry.cleanupFailedProvision(schemaName).catch(() => undefined);
       throw e;
     }
-    return { message: 'Cadastro realizado com sucesso' };
+    return { message: 'Cadastro realizado com sucesso. Verifique seu e-mail para ativar a conta.' };
   }
 }

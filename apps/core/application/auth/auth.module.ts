@@ -5,13 +5,14 @@ import { UserRepository } from '@common/database/persistence/repositories/user.r
 import { ProfileRepository } from '@common/database/persistence/repositories/profile.repository';
 import { UserPasswordResetRequestRepositoryImpl } from '@common/database/persistence/repositories/user-password-reset-request.repository';
 import { PrismaModule } from '@common/database/persistence/prisma.module';
+import { EmailModule } from '@common/email/email.module';
 import { ValidateResetTokenUseCase } from './use-cases/validate-reset-token.use-case';
 import { FirstAccessUseCase } from './use-cases/first-access.use-case';
 import { ChangePasswordByTokenUseCase } from './use-cases/change-password-by-token.use-case';
 import { RegisterTenantUseCase } from './use-cases/register-tenant.use-case';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, EmailModule],
   controllers: [AuthController],
   providers: [
     AuthService,
