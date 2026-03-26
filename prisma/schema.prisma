@@ -20,6 +20,15 @@ model Company {
   updatedIn         DateTime? @updatedAt @map("updated_in")
   name              String    @db.VarChar(255)
   federalRegistration String  @db.VarChar(18) @map("federal_registration")
+  phone             String?   @db.VarChar(30)
+  email             String?   @db.VarChar(255)
+  website           String?   @db.VarChar(255)
+  address           String?   @db.VarChar(500)
+  logo              String?   @db.Text
+  primaryColor      String?   @db.VarChar(9) @map("primary_color")
+  secondaryColor    String?   @db.VarChar(9) @map("secondary_color")
+  footerText        String?   @db.Text @map("footer_text")
+  termsText         String?   @db.Text @map("terms_text")
 
   // Relacionamentos
   users User[]
