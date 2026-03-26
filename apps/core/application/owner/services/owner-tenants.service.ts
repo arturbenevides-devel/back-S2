@@ -90,7 +90,7 @@ export class OwnerTenantsService {
     this.logger.warn(`Tenant "${cnpj}" removido do registro`);
   }
 
-  /** Cria perfis padrão (Gerente, Operador) caso não existam no tenant. Idempotente. */
+  /** Cria perfis padrão (Gerente, Atendente) caso não existam no tenant. Idempotente. */
   async seedDefaultProfiles(cnpj: string): Promise<{ created: string[] }> {
     const exists = await this.registry.isRegistered(cnpj);
     if (!exists) {
@@ -140,6 +140,12 @@ export class OwnerTenantsService {
         });
       }
 
+      // Renomear "Operador" → "Atendente" em tenants antigos
+      const operadorProfile = await tx.profile.findFirst({ where: { name: 'Operador' } });
+      if (operadorProfile) {
+        await tx.profile.update({ where: { id: operadorProfile.id }, data: { name: 'Atendente' } });
+      }
+
       const existingProfiles = await tx.profile.findMany({ select: { name: true } });
       const existingNames = new Set(existingProfiles.map((p) => p.name));
 
@@ -173,7 +179,7 @@ export class OwnerTenantsService {
           }),
         },
         {
-          name: 'Operador',
+          name: 'Atendente',
           description: 'Acesso somente leitura, visualiza colegas',
           permissions: (controller: string) => ({
             canCreate: false,

@@ -42,8 +42,8 @@ export class ListUsersUseCase {
       users = users.filter((u) => teamMemberIds.has(u.id));
     }
 
-    // Operador: só vê membros da própria equipe
-    if (requesterProfileName === 'Operador' && requesterTeamId) {
+    // Atendente: só vê membros da própria equipe
+    if (requesterProfileName === 'Atendente' && requesterTeamId) {
       const teamMembers = await this.teamRepository.findTeamMembers(requesterTeamId);
       const teamMemberIds = new Set(teamMembers.map((m) => m.id));
       users = users.filter((u) => teamMemberIds.has(u.id));

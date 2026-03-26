@@ -166,7 +166,7 @@ export class RegisterTenantUseCase {
 
         const operadorProfile = await tx.profile.create({
           data: {
-            name: 'Operador',
+            name: 'Atendente',
             description: 'Acesso somente leitura, visualiza colegas',
             isDefault: false,
             isActive: true,
@@ -222,7 +222,7 @@ export class RegisterTenantUseCase {
             },
           });
 
-          // Operador: somente leitura em users
+          // Atendente: somente leitura em users
           await tx.profilePermission.create({
             data: {
               profileId: operadorProfile.id,
