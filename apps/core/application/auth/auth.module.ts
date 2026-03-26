@@ -4,6 +4,7 @@ import { AuthController } from '@common/http/controllers/auth.controller';
 import { UserRepository } from '@common/database/persistence/repositories/user.repository';
 import { ProfileRepository } from '@common/database/persistence/repositories/profile.repository';
 import { UserPasswordResetRequestRepositoryImpl } from '@common/database/persistence/repositories/user-password-reset-request.repository';
+import { OwnerUserRepositoryImpl } from '@common/database/persistence/repositories/owner-user.repository';
 import { PrismaModule } from '@common/database/persistence/prisma.module';
 import { EmailModule } from '@common/email/email.module';
 import { ValidateResetTokenUseCase } from './use-cases/validate-reset-token.use-case';
@@ -31,6 +32,10 @@ import { RegisterTenantUseCase } from './use-cases/register-tenant.use-case';
     {
       provide: 'UserPasswordResetRequestRepository',
       useClass: UserPasswordResetRequestRepositoryImpl,
+    },
+    {
+      provide: 'OwnerUserRepository',
+      useClass: OwnerUserRepositoryImpl,
     },
   ],
   exports: [AuthService],

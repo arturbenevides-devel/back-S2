@@ -30,6 +30,8 @@ export class AuthResponseDto {
     profileName: string;
     /** Perfil padrão (admin): ignora checagem de permissões no front (menu e rotas) */
     profileIsDefault?: boolean;
+    /** Role do usuário: OWNER, TENANT_ADMIN ou USER */
+    role?: string;
   };
 }
 

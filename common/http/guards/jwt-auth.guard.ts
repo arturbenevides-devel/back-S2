@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { InvalidTokenException, ExpiredTokenException } from '@common/utils/exceptions/auth.exceptions';
 import { isValidCnpjDigits } from '@common/utils/cnpj.util';
+import { SystemRole, OWNER_SENTINEL } from '@common/utils/decorators/access-control.decorator';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -19,7 +20,17 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const payload = (await this.jwtService.verifyAsync(token)) as {
         tenantSchema?: string;
+        role?: string;
       };
+
+      if (payload.role === SystemRole.OWNER) {
+        if (payload.tenantSchema !== OWNER_SENTINEL) {
+          throw new UnauthorizedException('Token de Owner inválido');
+        }
+        request['user'] = payload;
+        return true;
+      }
+
       if (
         !payload.tenantSchema ||
         typeof payload.tenantSchema !== 'string' ||

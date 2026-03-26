@@ -5,6 +5,7 @@ import { LoginDto } from '@apps/core/application/auth/dto/login.dto';
 import { AuthResponseDto } from '@apps/core/application/auth/dto/auth-response.dto';
 import { FirstAccessDto } from '@apps/core/application/auth/dto/first-access.dto';
 import { RegisterTenantDto } from '@apps/core/application/auth/dto/register-tenant.dto';
+import { OwnerLoginDto } from '@apps/core/application/auth/dto/owner-login.dto';
 import { ValidateResetTokenUseCase } from '@apps/core/application/auth/use-cases/validate-reset-token.use-case';
 import { FirstAccessUseCase } from '@apps/core/application/auth/use-cases/first-access.use-case';
 import { ChangePasswordByTokenUseCase } from '@apps/core/application/auth/use-cases/change-password-by-token.use-case';
@@ -40,6 +41,15 @@ export class AuthController {
   })
   async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(loginDto);
+  }
+
+  @Post('owner-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login do Owner (super admin) — sem CNPJ' })
+  @ApiResponse({ status: 200, description: 'Login realizado', type: AuthResponseDto })
+  @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
+  async ownerLogin(@Body() dto: OwnerLoginDto): Promise<AuthResponseDto> {
+    return this.authService.ownerLogin(dto);
   }
 
   @Post('register-tenant')
