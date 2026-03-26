@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { UserRepository } from '@common/domain/users/repositories/user.repository.interface';
 import { ProfileRepository } from '@common/domain/profiles/repositories/profile.repository.interface';
+import { TeamRepository } from '@common/domain/teams/repositories/team.repository.interface';
 import { UserResponseDto } from '../dto/user-response.dto';
 
 @Injectable()
@@ -10,6 +11,8 @@ export class ListUsersUseCase {
     private readonly userRepository: UserRepository,
     @Inject('ProfileRepository')
     private readonly profileRepository: ProfileRepository,
+    @Inject('TeamRepository')
+    private readonly teamRepository: TeamRepository,
   ) {}
 
   async execute(excludeUserId?: string): Promise<UserResponseDto[]> {
@@ -19,12 +22,31 @@ export class ListUsersUseCase {
     }
 
     let requesterIsDefault = true;
+    let requesterProfileName: string | null = null;
+    let requesterTeamId: string | null = null;
+
     if (excludeUserId) {
       const requesterUser = await this.userRepository.findById(excludeUserId);
       if (requesterUser) {
         const requesterProfile = await this.profileRepository.findById(requesterUser.profileId);
         requesterIsDefault = requesterProfile?.isDefault === true;
+        requesterProfileName = requesterProfile?.name || null;
+        requesterTeamId = await this.teamRepository.findMemberTeamId(excludeUserId);
       }
+    }
+
+    // Supervisor: só vê membros da própria equipe
+    if (requesterProfileName === 'Supervisor' && requesterTeamId) {
+      const teamMembers = await this.teamRepository.findTeamMembers(requesterTeamId);
+      const teamMemberIds = new Set(teamMembers.map((m) => m.id));
+      users = users.filter((u) => teamMemberIds.has(u.id));
+    }
+
+    // Operador: só vê membros da própria equipe
+    if (requesterProfileName === 'Operador' && requesterTeamId) {
+      const teamMembers = await this.teamRepository.findTeamMembers(requesterTeamId);
+      const teamMemberIds = new Set(teamMembers.map((m) => m.id));
+      users = users.filter((u) => teamMemberIds.has(u.id));
     }
 
     const usersWithProfiles = await Promise.all(
@@ -38,12 +60,11 @@ export class ListUsersUseCase {
   }
 
   private async mapToResponseDto(user: any): Promise<UserResponseDto> {
-    // Buscar perfil do usuário
     const profile = await this.profileRepository.findById(user.profileId);
     if (!profile) {
       throw new Error(`Perfil do usuário ${user.id} não encontrado`);
     }
-    
+
     return {
       id: user.id,
       email: user.email,
@@ -65,9 +86,3 @@ export class ListUsersUseCase {
     };
   }
 }
-
-
-
-
-
-
