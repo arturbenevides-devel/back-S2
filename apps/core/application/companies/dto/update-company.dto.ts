@@ -22,4 +22,46 @@ export class UpdateCompanyDto {
   @IsString({ message: 'CNPJ deve ser uma string' })
   @MaxLength(18, { message: 'CNPJ deve ter no máximo 18 caracteres' })
   federalRegistration?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  website?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  logo?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(9)
+  primaryColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(9)
+  secondaryColor?: string;
+
+  @IsOptional()
+  @IsString()
+  footerText?: string;
+
+  @IsOptional()
+  @IsString()
+  termsText?: string;
 }

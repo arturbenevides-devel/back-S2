@@ -36,4 +36,14 @@ export class CompanyResponseDto {
     example: '2024-01-01T00:00:00.000Z',
   })
   updatedIn: Date;
+
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  address?: string | null;
+  logo?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  footerText?: string | null;
+  termsText?: string | null;
 }
