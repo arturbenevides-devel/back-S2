@@ -31,6 +31,7 @@
     "tenants:migrate": "npx ts-node scripts/migrate-all-tenants.ts"
   },
   "dependencies": {
+    "@honeycombio/opentelemetry-node": "^0.7.2",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.0.0",
     "@nestjs/core": "^10.0.0",
@@ -38,16 +39,17 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/swagger": "8.0.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.72.0",
     "@prisma/client": "^6.17.1",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "dotenv": "^17.3.1",
     "handlebars": "^4.7.8",
     "nodemailer": "^6.9.8",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.20.0",
-    "dotenv": "^17.3.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1"
   },
