@@ -12,6 +12,7 @@ import { AuthModule } from '@apps/core/application/auth/auth.module';
 import { MenusModule } from '@apps/core/application/menus/menus.module';
 import { CompaniesModule } from '@apps/core/application/companies/companies.module';
 import { OwnerModule } from '@apps/core/application/owner/owner.module';
+import { TeamsModule } from '@apps/core/application/teams/teams.module';
 import { EmailModule } from '@common/email/email.module';
 import { emailConfig } from '@common/email/email.config';
 
@@ -35,6 +36,7 @@ import { emailConfig } from '@common/email/email.config';
     MenusModule,
     CompaniesModule,
     OwnerModule,
+    TeamsModule,
     EmailModule,
   ],
   providers: [
