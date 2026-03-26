@@ -61,10 +61,13 @@ model User {
   profileImage   String?   @db.VarChar(255) @map("profile_image")
   profileId      String    @map("profile_id")
   companyId      String?   @map("company_id")
+  teamId         String?   @map("team_id")
 
   // Relacionamentos
   profile Profile @relation(fields: [profileId], references: [id])
   company Company? @relation(fields: [companyId], references: [id])
+  team    Team?    @relation("TeamMembers", fields: [teamId], references: [id])
+  supervisedTeams Team[] @relation("TeamSupervisor")
 
   // Relacionamentos
   passwordResetRequests UserPasswordResetRequest[]
@@ -112,6 +115,24 @@ model ProfilePermission {
   @@unique([profileId, controller])
   @@unique([profileId, menuId])
   @@map("profile_permissions")
+}
+
+// ===========================================
+// EQUIPES
+// ===========================================
+model Team {
+  id           String    @id @default(uuid())
+  createdIn    DateTime  @default(now()) @map("created_in")
+  isActive     Boolean   @default(true) @map("is_active")
+  updatedIn    DateTime? @updatedAt @map("updated_in")
+  name         String    @db.VarChar(255)
+  supervisorId String?   @map("supervisor_id")
+
+  // Relacionamentos
+  supervisor User?  @relation("TeamSupervisor", fields: [supervisorId], references: [id])
+  members    User[] @relation("TeamMembers")
+
+  @@map("teams")
 }
 
 // ===========================================
