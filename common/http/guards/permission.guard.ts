@@ -3,9 +3,10 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { ProfilePermissionRepository } from '@common/domain/profile-permissions/repositories/profile-permission.repository.interface';
 import { ProfileRepository } from '@common/domain/profiles/repositories/profile.repository.interface';
-import { AccessControlOptions } from '@common/utils/decorators/access-control.decorator';
+import { AccessControlOptions, SystemRole } from '@common/utils/decorators/access-control.decorator';
 import { AccessDeniedException } from '@common/utils/exceptions/auth.exceptions';
 import { ADMIN_ONLY_KEY } from '@common/utils/decorators/admin-only.decorator';
+import { OWNER_ONLY_KEY } from '@common/utils/decorators/owner-only.decorator';
 import { runWithTenantSchema } from '@common/tenant/tenant-schema.storage';
 import { isValidCnpjDigits } from '@common/utils/cnpj.util';
 
@@ -21,7 +22,17 @@ export class PermissionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const user = request['user'] as { tenantSchema?: string; profileId?: string } | undefined;
+    const user = request['user'] as { tenantSchema?: string; profileId?: string; role?: string } | undefined;
+
+    const isOwnerOnly = this.reflector.get<boolean>(OWNER_ONLY_KEY, context.getHandler());
+
+    if (user?.role === SystemRole.OWNER) {
+      return true;
+    }
+
+    if (isOwnerOnly) {
+      throw new AccessDeniedException('acessar', 'este recurso (somente Owner)');
+    }
 
     if (
       !user?.tenantSchema ||

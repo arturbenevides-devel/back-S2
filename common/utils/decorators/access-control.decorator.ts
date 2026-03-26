@@ -1,14 +1,15 @@
 import { SetMetadata } from '@nestjs/common';
 
-export enum ProfileRole {
-  ADMIN = 'ADMIN',
+export enum SystemRole {
+  OWNER = 'OWNER',
+  TENANT_ADMIN = 'TENANT_ADMIN',
   USER = 'USER',
-  MANAGER = 'MANAGER',
-  VIEWER = 'VIEWER',
 }
 
+export const OWNER_SENTINEL = '__owner__';
+
 export interface AccessControlOptions {
-  roles?: ProfileRole[];
+  roles?: SystemRole[];
   permissions?: {
     create?: boolean;
     update?: boolean;
