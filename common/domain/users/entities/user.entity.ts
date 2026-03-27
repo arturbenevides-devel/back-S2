@@ -45,6 +45,30 @@ export class User extends Entity {
     );
   }
 
+  static createWithoutPassword(
+    email: string,
+    fullName: string,
+    profileId: string,
+    id?: string,
+    createdIn?: Date,
+    updatedIn?: Date | null,
+    profileImage?: string,
+    companyId?: string,
+  ): User {
+    return new User(
+      id || '',
+      new Email(email),
+      fullName,
+      new Password('!', true),
+      profileId,
+      createdIn || DateUtil.now(),
+      false,
+      updatedIn || null,
+      profileImage,
+      companyId,
+    );
+  }
+
   static fromDatabase(
     email: string,
     fullName: string,
@@ -99,6 +123,10 @@ export class User extends Entity {
     return this._companyId;
   }
 
+  get hasPassword(): boolean {
+    return this._password.value !== '!';
+  }
+
   updateFullName(fullName: string): void {
     this._fullName = fullName;
     this.updateTimestamp();
@@ -148,7 +176,3 @@ export class User extends Entity {
     );
   }
 }
-
-
-
-

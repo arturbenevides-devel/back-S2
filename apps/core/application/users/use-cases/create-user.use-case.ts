@@ -1,6 +1,5 @@
 import { Injectable, ConflictException, Inject, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
-import { randomBytes } from 'crypto';
 import { UserRepository } from '@common/domain/users/repositories/user.repository.interface';
 import { ProfileRepository } from '@common/domain/profiles/repositories/profile.repository.interface';
 import { UserPasswordResetRequestRepository } from '@common/domain/users/repositories/user-password-reset-request.repository.interface';
@@ -40,18 +39,12 @@ export class CreateUserUseCase {
       );
     }
 
-    const tempPassword =
-      createUserDto.password && createUserDto.password.length >= 6
-        ? createUserDto.password
-        : randomBytes(32).toString('hex');
-    const user = User.create(
+    const user = User.createWithoutPassword(
       createUserDto.email,
       createUserDto.fullName,
-      tempPassword,
       createUserDto.profileId,
       '',
       undefined,
-      false,
       undefined,
       createUserDto.profileImage,
       createUserDto.companyId,
@@ -63,7 +56,7 @@ export class CreateUserUseCase {
       // Criar reset request para confirmação de email
       const resetRequest = UserPasswordResetRequest.create(
         crypto.randomUUID(),
-        DateUtil.addHours(DateUtil.now(), 2), // 2 horas
+        DateUtil.addHours(DateUtil.now(), 24), // 24 horas
         false,
         DateUtil.now(),
         savedUser.id,

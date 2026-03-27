@@ -8,6 +8,7 @@ import { DeleteUserUseCase } from '../use-cases/delete-user.use-case';
 import { ListUsersUseCase } from '../use-cases/list-users.use-case';
 import { UpdateUserStatusUseCase } from '../use-cases/update-user-status.use-case';
 import { SetMyPasswordUseCase } from '../use-cases/set-my-password.use-case';
+import { ResetUserPasswordUseCase } from '../use-cases/reset-user-password.use-case';
 import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
@@ -26,6 +27,7 @@ export class UserService {
     private readonly listUsersUseCase: ListUsersUseCase,
     private readonly updateUserStatusUseCase: UpdateUserStatusUseCase,
     private readonly setMyPasswordUseCase: SetMyPasswordUseCase,
+    private readonly resetUserPasswordUseCase: ResetUserPasswordUseCase,
   ) {}
 
   async create(createUserDto: CreateUserDto): Promise<UserResponseDto> {
@@ -62,6 +64,10 @@ export class UserService {
 
   async setMyPassword(userId: string, dto: SetMyPasswordDto): Promise<void> {
     return this.setMyPasswordUseCase.execute(userId, dto);
+  }
+
+  async resetUserPassword(userId: string): Promise<{ message: string }> {
+    return this.resetUserPasswordUseCase.execute(userId);
   }
 }
 

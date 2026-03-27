@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { UserRepository } from '@common/domain/users/repositories/user.repository.interface';
 import { UserPasswordResetRequestRepository } from '@common/domain/users/repositories/user-password-reset-request.repository.interface';
 import { FirstAccessDto } from '../dto/first-access.dto';
@@ -29,6 +30,18 @@ export class FirstAccessUseCase {
 
       if (!user) {
         throw new NotFoundException('Usuário não encontrado');
+      }
+
+      // Se o usuário não tem senha definida, exigir criação de senha
+      if (!user.hasPassword) {
+        if (!dto.password) {
+          throw new BadRequestException('Senha é obrigatória para ativar esta conta');
+        }
+        if (dto.password !== dto.passwordConfirmation) {
+          throw new BadRequestException('Senhas não conferem');
+        }
+        const hashedPassword = bcrypt.hashSync(dto.password, 10);
+        await this.userRepository.updatePassword(user.id, hashedPassword);
       }
 
       if (!user.isActive) {
