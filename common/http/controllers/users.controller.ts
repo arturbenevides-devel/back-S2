@@ -110,6 +110,19 @@ export class UsersController {
     return this.userService.findAll(excludeUserId);
   }
 
+  @Post(':id/reset-password')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @AccessControl({ permissions: { update: true } })
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Enviar email de redefinição de senha para o usuário' })
+  @ApiParam({ name: 'id', description: 'ID do usuário' })
+  @ApiResponse({ status: 200, description: 'Email de redefinição enviado' })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  @ApiResponse({ status: 403, description: 'Token JWT inválido ou sem permissão' })
+  async resetUserPassword(@Param('id') id: string): Promise<{ message: string }> {
+    return this.userService.resetUserPassword(id);
+  }
+
   @Post('status')
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @AccessControl({ permissions: { update: true } })

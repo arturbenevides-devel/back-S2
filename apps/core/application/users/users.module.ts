@@ -10,6 +10,7 @@ import { ListUsersUseCase } from './use-cases/list-users.use-case';
 import { ConfirmEmailUseCase } from './use-cases/confirm-email.use-case';
 import { UpdateUserStatusUseCase } from './use-cases/update-user-status.use-case';
 import { SetMyPasswordUseCase } from './use-cases/set-my-password.use-case';
+import { ResetUserPasswordUseCase } from './use-cases/reset-user-password.use-case';
 import { UserRepository } from '@common/database/persistence/repositories/user.repository';
 import { CompanyRepository } from '@common/database/persistence/repositories/company.repository';
 import { UserPasswordResetRequestRepositoryImpl } from '@common/database/persistence/repositories/user-password-reset-request.repository';
@@ -36,6 +37,7 @@ import { PermissionGuard } from '@common/http/guards/permission.guard';
     ConfirmEmailUseCase,
     UpdateUserStatusUseCase,
     SetMyPasswordUseCase,
+    ResetUserPasswordUseCase,
     JwtAuthGuard,
     PermissionGuard,
     {

@@ -7,6 +7,7 @@ export interface ValidateResetTokenResult {
   userId: string;
   email: string;
   firstAccess: boolean;
+  hasPassword: boolean;
 }
 
 @Injectable()
@@ -40,6 +41,7 @@ export class ValidateResetTokenUseCase {
         userId: user.id,
         email: user.email,
         firstAccess: !user.isActive,
+        hasPassword: user.hasPassword,
       };
     });
   }

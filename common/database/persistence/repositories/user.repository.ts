@@ -209,7 +209,7 @@ export class UserRepository implements IUserRepository {
       });
 
       return users.map((user) =>
-        User.create(
+        User.fromDatabase(
           user.email,
           user.fullName,
           user.password,
