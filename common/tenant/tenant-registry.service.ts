@@ -22,6 +22,13 @@ export class TenantRegistryService {
     return Number(rows[0]?.c ?? 0) > 0;
   }
 
+  async isTenantActive(schemaName: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<{ is_active: boolean }[]>`
+      SELECT is_active FROM public.tenant_registry WHERE schema_name = ${schemaName} LIMIT 1
+    `;
+    return Boolean(rows[0]?.is_active);
+  }
+
   async register(schemaName: string, companyName: string): Promise<void> {
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO public.tenant_registry (id, schema_name, company_name) VALUES ($1, $2, $3)`,

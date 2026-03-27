@@ -9,6 +9,7 @@ interface TenantRow {
   id: string;
   schema_name: string;
   company_name: string;
+  is_active: boolean;
   created_at: Date;
 }
 
@@ -16,6 +17,7 @@ export interface TenantSummary {
   id: string;
   schemaName: string;
   companyName: string;
+  isActive: boolean;
   createdAt: Date;
 }
 
@@ -32,7 +34,7 @@ export class OwnerTenantsService {
 
   async listTenants(): Promise<TenantSummary[]> {
     const rows = await this.prisma.$queryRaw<TenantRow[]>`
-      SELECT id, schema_name, company_name, created_at
+      SELECT id, schema_name, company_name, is_active, created_at
       FROM "public"."tenant_registry"
       ORDER BY created_at DESC
     `;
@@ -40,13 +42,14 @@ export class OwnerTenantsService {
       id: r.id,
       schemaName: r.schema_name,
       companyName: r.company_name,
+      isActive: r.is_active,
       createdAt: r.created_at,
     }));
   }
 
   async getTenant(cnpj: string): Promise<TenantSummary> {
     const rows = await this.prisma.$queryRaw<TenantRow[]>`
-      SELECT id, schema_name, company_name, created_at
+      SELECT id, schema_name, company_name, is_active, created_at
       FROM "public"."tenant_registry"
       WHERE schema_name = ${cnpj}
       LIMIT 1
@@ -59,8 +62,22 @@ export class OwnerTenantsService {
       id: r.id,
       schemaName: r.schema_name,
       companyName: r.company_name,
+      isActive: r.is_active,
       createdAt: r.created_at,
     };
+  }
+
+  async setTenantStatus(cnpj: string, isActive: boolean): Promise<TenantSummary> {
+    const exists = await this.registry.isRegistered(cnpj);
+    if (!exists) {
+      throw new NotFoundException('Tenant não encontrado');
+    }
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "public"."tenant_registry" SET is_active = $1 WHERE schema_name = $2`,
+      isActive,
+      cnpj,
+    );
+    return this.getTenant(cnpj);
   }
 
   async updateTenant(cnpj: string, companyName: string): Promise<TenantSummary> {

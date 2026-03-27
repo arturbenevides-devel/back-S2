@@ -28,7 +28,8 @@
     "prisma:status": "prisma migrate status",
     "prisma:seed": "npx ts-node prisma/seed.ts",
     "prisma:setup": "npm run prisma:migrate && npm run prisma:seed",
-    "tenants:migrate": "npx ts-node scripts/migrate-all-tenants.ts"
+    "tenants:migrate": "npx ts-node scripts/migrate-all-tenants.ts",
+    "seed:dev": "npx ts-node scripts/seed-dev.ts"
   },
   "dependencies": {
     "@honeycombio/opentelemetry-node": "^0.7.2",
