@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength, IsOptional, IsUUID } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, IsOptional, IsUUID, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
@@ -20,13 +20,16 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'Senha do usuário (opcional; se omitida, o usuário ativa a conta por e-mail)',
-    example: 'senha123',
-    minLength: 6,
+    example: 'Senha@123',
+    minLength: 8,
     required: false,
   })
   @IsOptional()
   @IsString({ message: 'Senha deve ser uma string' })
-  @MinLength(6, { message: 'Senha deve ter pelo menos 6 caracteres' })
+  @MinLength(8, { message: 'Senha deve ter pelo menos 8 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s])/, {
+    message: 'Senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial',
+  })
   @MaxLength(100, { message: 'Senha deve ter no máximo 100 caracteres' })
   password?: string;
 

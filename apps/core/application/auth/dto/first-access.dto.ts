@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsObject, ValidateNested, Length } from 'class-validator';
+import { IsEmail, IsString, MinLength, Matches, IsObject, ValidateNested, Length } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsValidCnpj } from '@common/utils/is-valid-cnpj.decorator';
@@ -8,9 +8,12 @@ class AuthDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'senha123', minLength: 6 })
+  @ApiProperty({ example: 'Senha@123', minLength: 8 })
   @IsString()
-  @MinLength(6, { message: 'Senha deve ter pelo menos 6 caracteres' })
+  @MinLength(8, { message: 'Senha deve ter pelo menos 8 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s])/, {
+    message: 'Senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial',
+  })
   password: string;
 }
 
