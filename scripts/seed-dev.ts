@@ -53,6 +53,13 @@ const SUPERVISOR = {
   password: 'S2Viagens@2024',
 };
 
+const GERENTE = {
+  email: 'gerente@s2viagens.com',
+  fullName: 'Gerente Dev',
+  cpf: '83479156030',
+  password: 'S2Viagens@2024',
+};
+
 const ATENDENTE = {
   email: 'atendente@s2viagens.com',
   fullName: 'Atendente Dev',
@@ -60,8 +67,26 @@ const ATENDENTE = {
   password: 'S2Viagens@2024',
 };
 
+const SUPERVISOR2 = {
+  email: 'supervisor2@s2viagens.com',
+  fullName: 'Supervisor 2 Dev',
+  cpf: '45632178051',
+  password: 'S2Viagens@2024',
+};
+
+const ATENDENTE2 = {
+  email: 'atendente2@s2viagens.com',
+  fullName: 'Atendente 2 Dev',
+  cpf: '62893017044',
+  password: 'S2Viagens@2024',
+};
+
 const TEAM = {
   name: 'Equipe Alfa',
+};
+
+const TEAM2 = {
+  name: 'Equipe Beta',
 };
 
 const DEFAULT_MENUS = [
@@ -294,11 +319,11 @@ async function main() {
         {
           profileId: supervisorProfile.id,
           permissions: (ctrl: string) => ({
-            canCreate: ctrl === 'users',
-            canUpdate: ctrl === 'users',
+            canCreate: false,
+            canUpdate: false,
             canDelete: false,
-            canFind: true,
-            canFindAll: true,
+            canFind: ctrl !== 'profiles',
+            canFindAll: ctrl !== 'profiles',
           }),
         },
         {
@@ -307,8 +332,8 @@ async function main() {
             canCreate: false,
             canUpdate: false,
             canDelete: false,
-            canFind: ctrl === 'users' || ctrl === 'teams',
-            canFindAll: ctrl === 'users' || ctrl === 'teams',
+            canFind: ctrl === 'users',
+            canFindAll: ctrl === 'users',
           }),
         },
       ];
@@ -377,6 +402,26 @@ async function main() {
         console.log(`   Usuário já existe: ${SUPERVISOR.email}`);
       }
 
+      // Gerente
+      let gerenteUser = await tx.user.findFirst({ where: { email: GERENTE.email } });
+      if (!gerenteUser) {
+        gerenteUser = await tx.user.create({
+          data: {
+            email: GERENTE.email,
+            fullName: GERENTE.fullName,
+            cpf: GERENTE.cpf,
+            password: hash,
+            profileId: gerenteProfile.id,
+            companyId: company.id,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+        console.log(`   Usuário criado: ${GERENTE.fullName} (${GERENTE.email}) — Gerente`);
+      } else {
+        console.log(`   Usuário já existe: ${GERENTE.email}`);
+      }
+
       // Atendente
       let atendenteUser = await tx.user.findFirst({ where: { email: ATENDENTE.email } });
       if (!atendenteUser) {
@@ -397,7 +442,47 @@ async function main() {
         console.log(`   Usuário já existe: ${ATENDENTE.email}`);
       }
 
-      // ── Equipe ──────────────────────────────────────────────────────────────
+      // Supervisor 2
+      let supervisor2User = await tx.user.findFirst({ where: { email: SUPERVISOR2.email } });
+      if (!supervisor2User) {
+        supervisor2User = await tx.user.create({
+          data: {
+            email: SUPERVISOR2.email,
+            fullName: SUPERVISOR2.fullName,
+            cpf: SUPERVISOR2.cpf,
+            password: hash,
+            profileId: supervisorProfile.id,
+            companyId: company.id,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+        console.log(`   Usuário criado: ${SUPERVISOR2.fullName} (${SUPERVISOR2.email}) — Supervisor`);
+      } else {
+        console.log(`   Usuário já existe: ${SUPERVISOR2.email}`);
+      }
+
+      // Atendente 2
+      let atendente2User = await tx.user.findFirst({ where: { email: ATENDENTE2.email } });
+      if (!atendente2User) {
+        atendente2User = await tx.user.create({
+          data: {
+            email: ATENDENTE2.email,
+            fullName: ATENDENTE2.fullName,
+            cpf: ATENDENTE2.cpf,
+            password: hash,
+            profileId: atendenteProfile.id,
+            companyId: company.id,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+        console.log(`   Usuário criado: ${ATENDENTE2.fullName} (${ATENDENTE2.email}) — Atendente`);
+      } else {
+        console.log(`   Usuário já existe: ${ATENDENTE2.email}`);
+      }
+
+      // ── Equipe Alfa ────────────────────────────────────────────────────────
       let team = await tx.team.findFirst({ where: { name: TEAM.name } });
       if (!team) {
         team = await tx.team.create({
@@ -413,13 +498,38 @@ async function main() {
         console.log(`   Equipe já existe: ${team.name}`);
       }
 
-      // Vincular atendente à equipe
+      // Vincular atendente à equipe Alfa
       if (!atendenteUser.teamId || atendenteUser.teamId !== team.id) {
         await tx.user.update({
           where: { id: atendenteUser.id },
           data: { teamId: team.id },
         });
         console.log(`   ${ATENDENTE.fullName} vinculado à equipe ${TEAM.name}`);
+      }
+
+      // ── Equipe Beta ────────────────────────────────────────────────────────
+      let team2 = await tx.team.findFirst({ where: { name: TEAM2.name } });
+      if (!team2) {
+        team2 = await tx.team.create({
+          data: {
+            name: TEAM2.name,
+            supervisorId: supervisor2User.id,
+            isActive: true,
+            updatedIn: null,
+          },
+        });
+        console.log(`   Equipe criada: ${TEAM2.name} (supervisor: ${SUPERVISOR2.fullName})`);
+      } else {
+        console.log(`   Equipe já existe: ${team2.name}`);
+      }
+
+      // Vincular atendente 2 à equipe Beta
+      if (!atendente2User.teamId || atendente2User.teamId !== team2.id) {
+        await tx.user.update({
+          where: { id: atendente2User.id },
+          data: { teamId: team2.id },
+        });
+        console.log(`   ${ATENDENTE2.fullName} vinculado à equipe ${TEAM2.name}`);
       }
     });
   } finally {
@@ -438,11 +548,15 @@ async function main() {
   console.log(`│  Empresa:     ${TENANT.companyName.padEnd(40)}    │`);
   console.log('├──────────────────────────────────────────────────────────────┤');
   console.log(`│  Admin:       ${ADMIN.email.padEnd(40)}    │`);
+  console.log(`│  Gerente:     ${GERENTE.email.padEnd(40)}    │`);
   console.log(`│  Supervisor:  ${SUPERVISOR.email.padEnd(40)}    │`);
+  console.log(`│  Supervisor2: ${SUPERVISOR2.email.padEnd(40)}    │`);
   console.log(`│  Atendente:   ${ATENDENTE.email.padEnd(40)}    │`);
+  console.log(`│  Atendente2:  ${ATENDENTE2.email.padEnd(40)}    │`);
   console.log(`│  Senha (todos): ${ADMIN.password.padEnd(38)}    │`);
   console.log('├──────────────────────────────────────────────────────────────┤');
-  console.log(`│  Equipe:      ${TEAM.name.padEnd(40)}    │`);
+  console.log(`│  ${TEAM.name.padEnd(14)} → ${SUPERVISOR.fullName} + ${ATENDENTE.fullName}`.padEnd(63) + '│');
+  console.log(`│  ${TEAM2.name.padEnd(14)} → ${SUPERVISOR2.fullName} + ${ATENDENTE2.fullName}`.padEnd(63) + '│');
   console.log('└──────────────────────────────────────────────────────────────┘');
 }
 

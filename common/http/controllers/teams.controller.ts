@@ -6,9 +6,11 @@ import {
   Delete,
   Body,
   Param,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +19,7 @@ import {
   ApiResponse,
   ApiParam,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { JwtAuthGuard } from '@common/http/guards/jwt-auth.guard';
 import { PermissionGuard } from '@common/http/guards/permission.guard';
 import { AccessControl } from '@common/utils/decorators/access-control.decorator';
@@ -51,6 +54,42 @@ export class TeamsController {
   @ApiResponse({ status: 403, description: 'Sem permissão' })
   async findAll(): Promise<TeamResponseDto[]> {
     return this.teamService.findAll();
+  }
+
+  @Get('my-team')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Buscar equipe do supervisor logado' })
+  @ApiResponse({ status: 200, description: 'Equipe do supervisor', type: TeamResponseDto })
+  @ApiResponse({ status: 404, description: 'Supervisor sem equipe' })
+  async findMyTeam(@Req() req: Request): Promise<TeamResponseDto> {
+    const userId = (req as any).user?.sub;
+    if (!userId) throw new UnauthorizedException();
+    return this.teamService.findMyTeam(userId);
+  }
+
+  @Put('my-team/members')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Atualizar membros da equipe do supervisor logado' })
+  @ApiResponse({ status: 200, description: 'Membros atualizados', type: TeamResponseDto })
+  @ApiResponse({ status: 404, description: 'Supervisor sem equipe' })
+  async updateMyTeamMembers(
+    @Req() req: Request,
+    @Body() body: { memberIds: string[] },
+  ): Promise<TeamResponseDto> {
+    const userId = (req as any).user?.sub;
+    if (!userId) throw new UnauthorizedException();
+    return this.teamService.updateMyTeamMembers(userId, body.memberIds ?? []);
+  }
+
+  @Get('my-team/available-members')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Listar usuários ativos disponíveis para adicionar à equipe' })
+  @ApiResponse({ status: 200, description: 'Usuários disponíveis' })
+  async findAvailableMembers(): Promise<{ id: string; fullName: string; email: string; isActive: boolean }[]> {
+    return this.teamService.findAvailableMembers();
   }
 
   @Get(':id')

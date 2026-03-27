@@ -19,5 +19,6 @@ export interface TeamRepository {
   setMembers(teamId: string, userIds: string[]): Promise<void>;
   findMemberTeamId(userId: string): Promise<string | null>;
   findTeamMembers(teamId: string): Promise<TeamMemberInfo[]>;
+  findAvailableMembers(): Promise<TeamMemberInfo[]>;
   findSupervisorName(supervisorId: string): Promise<string | null>;
 }
