@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Inject } from '@nes
 import * as bcrypt from 'bcryptjs';
 import { UserRepository } from '@common/domain/users/repositories/user.repository.interface';
 import { UserPasswordResetRequestRepository } from '@common/domain/users/repositories/user-password-reset-request.repository.interface';
-import { FirstAccessDto } from '../dto/first-access.dto';
+import { ChangePasswordByTokenDto } from '../dto/change-password-by-token.dto';
 import { runWithTenantSchema } from '@common/tenant/tenant-schema.storage';
 
 @Injectable()
@@ -14,7 +14,7 @@ export class ChangePasswordByTokenUseCase {
     private readonly resetRequestRepository: UserPasswordResetRequestRepository,
   ) {}
 
-  async execute(dto: FirstAccessDto): Promise<{ message: string }> {
+  async execute(dto: ChangePasswordByTokenDto): Promise<{ message: string }> {
     return runWithTenantSchema(dto.cnpj, async () => {
       const resetRequest = await this.resetRequestRepository.findByToken(dto.resetToken);
 
