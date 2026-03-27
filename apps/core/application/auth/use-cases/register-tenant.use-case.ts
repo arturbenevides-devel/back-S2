@@ -207,17 +207,17 @@ export class RegisterTenantUseCase {
             },
           });
 
-          // Supervisor: cria e edita users, leitura em teams, sem excluir
+          // Supervisor: leitura em users e teams, sem acesso a profiles
           await tx.profilePermission.create({
             data: {
               profileId: supervisorProfile.id,
               menuId: menu.id,
               controller,
-              canCreate: controller === 'users',
-              canUpdate: controller === 'users',
+              canCreate: false,
+              canUpdate: false,
               canDelete: false,
-              canFind: true,
-              canFindAll: true,
+              canFind: controller !== 'profiles',
+              canFindAll: controller !== 'profiles',
               updatedIn: null,
             },
           });

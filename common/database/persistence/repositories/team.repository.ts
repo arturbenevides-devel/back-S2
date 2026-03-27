@@ -156,6 +156,17 @@ export class TeamRepository implements ITeamRepository {
     });
   }
 
+  async findAvailableMembers(): Promise<TeamMemberInfo[]> {
+    return this.run(async (tx) => {
+      const users = await tx.user.findMany({
+        where: { isActive: true },
+        select: { id: true, fullName: true, email: true, isActive: true },
+        orderBy: { fullName: 'asc' },
+      });
+      return users;
+    });
+  }
+
   async findSupervisorName(supervisorId: string): Promise<string | null> {
     return this.run(async (tx) => {
       const user = await tx.user.findFirst({

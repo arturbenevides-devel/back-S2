@@ -186,13 +186,13 @@ export class OwnerTenantsService {
         },
         {
           name: 'Supervisor',
-          description: 'Gerencia usuários da equipe, pode criar e editar mas não excluir',
+          description: 'Supervisiona equipe, gerencia membros via painel próprio',
           permissions: (controller: string) => ({
-            canCreate: controller === 'users',
-            canUpdate: controller === 'users',
+            canCreate: false,
+            canUpdate: false,
             canDelete: false,
-            canFind: true,
-            canFindAll: true,
+            canFind: controller !== 'profiles',
+            canFindAll: controller !== 'profiles',
           }),
         },
         {
@@ -202,8 +202,8 @@ export class OwnerTenantsService {
             canCreate: false,
             canUpdate: false,
             canDelete: false,
-            canFind: controller === 'users' || controller === 'teams',
-            canFindAll: controller === 'users' || controller === 'teams',
+            canFind: controller === 'users',
+            canFindAll: controller === 'users',
           }),
         },
       ];
@@ -235,7 +235,21 @@ export class OwnerTenantsService {
       }
 
       for (const def of profilesToCreate) {
-        if (existingNames.has(def.name)) continue;
+        if (existingNames.has(def.name)) {
+          // Atualizar permissões de perfis existentes para manter consistência
+          const existingProfile = await tx.profile.findFirst({ where: { name: def.name } });
+          if (existingProfile) {
+            for (const menu of desktopMenus) {
+              const controller = menu.action.replace(/^\//, '');
+              const perms = def.permissions(controller);
+              await tx.profilePermission.updateMany({
+                where: { profileId: existingProfile.id, controller },
+                data: perms,
+              });
+            }
+          }
+          continue;
+        }
 
         const profile = await tx.profile.create({
           data: {

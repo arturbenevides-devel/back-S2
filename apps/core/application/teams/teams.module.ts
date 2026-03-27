@@ -3,7 +3,9 @@ import { TeamService } from './services/team.service';
 import { CreateTeamUseCase } from './use-cases/create-team.use-case';
 import { ListTeamsUseCase } from './use-cases/list-teams.use-case';
 import { GetTeamUseCase } from './use-cases/get-team.use-case';
+import { GetMyTeamUseCase } from './use-cases/get-my-team.use-case';
 import { UpdateTeamUseCase } from './use-cases/update-team.use-case';
+import { UpdateMyTeamMembersUseCase } from './use-cases/update-my-team-members.use-case';
 import { DeleteTeamUseCase } from './use-cases/delete-team.use-case';
 import { TeamRepository } from '@common/database/persistence/repositories/team.repository';
 import { TeamsController } from '@common/http/controllers/teams.controller';
@@ -20,7 +22,9 @@ import { ProfilePermissionsModule } from '../profile-permissions/profile-permiss
     CreateTeamUseCase,
     ListTeamsUseCase,
     GetTeamUseCase,
+    GetMyTeamUseCase,
     UpdateTeamUseCase,
+    UpdateMyTeamMembersUseCase,
     DeleteTeamUseCase,
     JwtAuthGuard,
     PermissionGuard,
