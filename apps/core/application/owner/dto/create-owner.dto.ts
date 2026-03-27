@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, MaxLength } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateOwnerDto {
@@ -12,9 +12,12 @@ export class CreateOwnerDto {
   @MaxLength(255)
   fullName: string;
 
-  @ApiProperty({ description: 'Senha', example: 'senha123', minLength: 6 })
+  @ApiProperty({ description: 'Senha', example: 'Senha@123', minLength: 8 })
   @IsString()
-  @MinLength(6, { message: 'Senha deve ter pelo menos 6 caracteres' })
+  @MinLength(8, { message: 'Senha deve ter pelo menos 8 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s])/, {
+    message: 'Senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial',
+  })
   @MaxLength(100)
   password: string;
 }

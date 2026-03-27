@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, Length } from 'class-validator';
+import { IsEmail, IsString, MinLength, Length, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { IsValidCnpj } from '@common/utils/is-valid-cnpj.decorator';
 
@@ -25,8 +25,11 @@ export class RegisterTenantDto {
   @IsEmail()
   email: string;
 
-  @ApiProperty({ example: 'senhaSegura1' })
+  @ApiProperty({ example: 'Senha@123' })
   @IsString()
-  @MinLength(6)
+  @MinLength(8, { message: 'Senha deve ter pelo menos 8 caracteres' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d\s])/, {
+    message: 'Senha deve conter pelo menos uma letra maiúscula, uma minúscula, um número e um caractere especial',
+  })
   password: string;
 }
