@@ -25,7 +25,7 @@ import { emailConfig } from '@common/email/email.config';
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-here',
-      signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '24h' },
+      signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '12h' },
     }),
     PrismaModule,
     TenantModule,
