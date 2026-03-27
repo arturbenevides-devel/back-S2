@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsEmail, IsString, MinLength, Length, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { IsValidCnpj } from '@common/utils/is-valid-cnpj.decorator';
+import { IsValidCpf } from '@common/utils/is-valid-cpf.decorator';
 
 export class RegisterTenantDto {
   @ApiProperty({ example: '04.252.011/0001-10' })
@@ -20,6 +21,13 @@ export class RegisterTenantDto {
   @IsString()
   @MinLength(2)
   fullName: string;
+
+  @ApiProperty({ example: '123.456.789-09' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\D/g, '') : value))
+  @IsString()
+  @Length(11, 11, { message: 'CPF deve ter 11 dígitos' })
+  @IsValidCpf()
+  cpf: string;
 
   @ApiProperty({ example: 'admin@empresa.com.br' })
   @IsEmail()

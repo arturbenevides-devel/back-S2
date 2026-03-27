@@ -66,6 +66,7 @@ model User {
   updatedIn      DateTime? @updatedAt @map("updated_in")
   email          String    @unique @db.VarChar(255)
   fullName       String    @db.VarChar(255) @map("full_name")
+  cpf            String?   @unique @db.VarChar(11)
   password       String
   profileImage   String?   @db.VarChar(255) @map("profile_image")
   profileId      String    @map("profile_id")

@@ -242,6 +242,7 @@ export class RegisterTenantUseCase {
           data: {
             email: dto.email,
             fullName: dto.fullName,
+            cpf: dto.cpf,
             password: hashed,
             profileId: profile.id,
             companyId: company.id,
