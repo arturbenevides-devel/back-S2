@@ -72,7 +72,7 @@ export class AuthService {
       return {
         accessToken,
         tokenType: 'Bearer',
-        expiresIn: 86400,
+        expiresIn: 43200,
         user: {
           id: user.id,
           email: user.email,
@@ -110,7 +110,7 @@ export class AuthService {
     return {
       accessToken,
       tokenType: 'Bearer',
-      expiresIn: 86400,
+      expiresIn: 43200,
       user: {
         id: owner.id,
         email: owner.email,
