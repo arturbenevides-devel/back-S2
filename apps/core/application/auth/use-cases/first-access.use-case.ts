@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
 import { UserRepository } from '@common/domain/users/repositories/user.repository.interface';
 import { UserPasswordResetRequestRepository } from '@common/domain/users/repositories/user-password-reset-request.repository.interface';
 import { FirstAccessDto } from '../dto/first-access.dto';
@@ -32,13 +31,6 @@ export class FirstAccessUseCase {
         throw new NotFoundException('Usuário não encontrado');
       }
 
-      if (user.email !== dto.auth.email) {
-        throw new BadRequestException('E-mail não corresponde ao token');
-      }
-
-      const hashedPassword = bcrypt.hashSync(dto.auth.password, 10);
-      await this.userRepository.updatePassword(user.id, hashedPassword);
-
       if (!user.isActive) {
         const activatedUser = user.activate();
         await this.userRepository.update(activatedUser);
@@ -48,7 +40,7 @@ export class FirstAccessUseCase {
       await this.resetRequestRepository.update(usedResetRequest);
 
       return {
-        message: 'Conta ativada com sucesso. Faça login com sua nova senha.',
+        message: 'Conta ativada com sucesso. Faça login com seu e-mail e senha.',
       };
     });
   }

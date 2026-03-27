@@ -4,6 +4,7 @@ import { AuthService } from '@apps/core/application/auth/services/auth.service';
 import { LoginDto } from '@apps/core/application/auth/dto/login.dto';
 import { AuthResponseDto } from '@apps/core/application/auth/dto/auth-response.dto';
 import { FirstAccessDto } from '@apps/core/application/auth/dto/first-access.dto';
+import { ChangePasswordByTokenDto } from '@apps/core/application/auth/dto/change-password-by-token.dto';
 import { RegisterTenantDto } from '@apps/core/application/auth/dto/register-tenant.dto';
 import { OwnerLoginDto } from '@apps/core/application/auth/dto/owner-login.dto';
 import { ValidateResetTokenUseCase } from '@apps/core/application/auth/use-cases/validate-reset-token.use-case';
@@ -114,7 +115,7 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: 'Dados inválidos ou token inválido' })
   @ApiResponse({ status: 404, description: 'Token ou usuário não encontrado' })
-  async changePasswordByToken(@Body() dto: FirstAccessDto): Promise<{ message: string }> {
+  async changePasswordByToken(@Body() dto: ChangePasswordByTokenDto): Promise<{ message: string }> {
     return this.changePasswordByTokenUseCase.execute(dto);
   }
 }
