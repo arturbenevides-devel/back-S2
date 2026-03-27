@@ -30,6 +30,11 @@ export class AuthService {
       throw new UnauthorizedException('Empresa não encontrada ou não cadastrada');
     }
 
+    const tenantActive = await this.tenantRegistry.isTenantActive(loginDto.cnpj);
+    if (!tenantActive) {
+      throw new UnauthorizedException('Empresa desativada. Entre em contato com o suporte.');
+    }
+
     return runWithTenantSchema(loginDto.cnpj, async () => {
       const user = await this.userRepository.findByEmailIncludingInactive(loginDto.email);
 

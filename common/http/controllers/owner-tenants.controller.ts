@@ -59,6 +59,17 @@ export class OwnerTenantsController {
     return this.tenantsService.seedDefaultProfiles(cnpj);
   }
 
+  @Post(':cnpj/status')
+  @OwnerOnly()
+  @ApiOperation({ summary: 'Ativar ou desativar tenant (somente Owner)' })
+  @ApiParam({ name: 'cnpj', description: 'CNPJ (14 dígitos) do tenant' })
+  async setTenantStatus(
+    @Param('cnpj') cnpj: string,
+    @Body() body: { isActive: boolean },
+  ): Promise<TenantSummary> {
+    return this.tenantsService.setTenantStatus(cnpj, body.isActive);
+  }
+
   @Delete(':cnpj')
   @OwnerOnly()
   @ApiOperation({ summary: 'Excluir tenant e todos os dados (somente Owner)' })
