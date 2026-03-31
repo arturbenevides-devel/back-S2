@@ -74,7 +74,7 @@ export class EmailService {
           'X-Priority': '1',
           'X-MSMail-Priority': 'High',
           'Importance': 'high',
-          'X-Mailer': 'Jornada de Vendas API',
+          'X-Mailer': 'Agente Mais API',
           'Reply-To': emailFrom,
         }
       };

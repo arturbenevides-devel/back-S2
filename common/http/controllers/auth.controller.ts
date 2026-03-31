@@ -34,7 +34,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 401,
-    description: 'Credenciais inválidas',
+    description: 'Email ou senha incorretos',
   })
   @ApiResponse({
     status: 400,
@@ -48,7 +48,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login do Owner (super admin) — sem CNPJ' })
   @ApiResponse({ status: 200, description: 'Login realizado', type: AuthResponseDto })
-  @ApiResponse({ status: 401, description: 'Credenciais inválidas' })
+  @ApiResponse({ status: 401, description: 'Email ou senha incorretos' })
   async ownerLogin(@Body() dto: OwnerLoginDto): Promise<AuthResponseDto> {
     return this.authService.ownerLogin(dto);
   }

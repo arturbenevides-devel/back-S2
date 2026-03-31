@@ -9,6 +9,7 @@ export class UpdateUserDto {
   })
   @IsOptional()
   @IsEmail({}, { message: 'Email inválido' })
+  @MaxLength(254, { message: 'Email deve ter no máximo 254 caracteres' })
   email?: string;
 
   @ApiProperty({
@@ -19,7 +20,7 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString({ message: 'Nome completo deve ser uma string' })
   @MinLength(2, { message: 'Nome completo deve ter pelo menos 2 caracteres' })
-  @MaxLength(255, { message: 'Nome completo deve ter no máximo 255 caracteres' })
+  @MaxLength(120, { message: 'Nome completo deve ter no máximo 120 caracteres' })
   fullName?: string;
 
   @ApiProperty({

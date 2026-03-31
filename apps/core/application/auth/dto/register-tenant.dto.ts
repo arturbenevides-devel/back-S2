@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, Length, Matches } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, Length, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { IsValidCnpj } from '@common/utils/is-valid-cnpj.decorator';
 import { IsValidCpf } from '@common/utils/is-valid-cpf.decorator';
@@ -15,11 +15,13 @@ export class RegisterTenantDto {
   @ApiProperty({ example: 'Minha Empresa LTDA' })
   @IsString()
   @MinLength(2)
+  @MaxLength(150, { message: 'Nome da empresa deve ter no máximo 150 caracteres' })
   companyName: string;
 
   @ApiProperty({ example: 'João Silva' })
   @IsString()
   @MinLength(2)
+  @MaxLength(120, { message: 'Nome completo deve ter no máximo 120 caracteres' })
   fullName: string;
 
   @ApiProperty({ example: '123.456.789-09' })
@@ -31,6 +33,7 @@ export class RegisterTenantDto {
 
   @ApiProperty({ example: 'admin@empresa.com.br' })
   @IsEmail()
+  @MaxLength(254, { message: 'Email deve ter no máximo 254 caracteres' })
   email: string;
 
   @ApiProperty({ example: 'Senha@123' })

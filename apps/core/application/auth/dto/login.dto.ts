@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, Length } from 'class-validator';
+import { IsEmail, IsString, MinLength, MaxLength, Length } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsValidCnpj } from '@common/utils/is-valid-cnpj.decorator';
@@ -19,6 +19,7 @@ export class LoginDto {
     example: 'admin@develcode.com.br',
   })
   @IsEmail({}, { message: 'Email deve ter um formato válido' })
+  @MaxLength(254, { message: 'Email deve ter no máximo 254 caracteres' })
   email: string;
 
   @ApiProperty({

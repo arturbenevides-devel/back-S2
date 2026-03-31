@@ -1,7 +1,7 @@
 {
-  "name": "jornada-de-vendas-api",
+  "name": "agente-mais",
   "version": "1.0.0",
-  "description": "API Jornada de Vendas com arquitetura DDD",
+  "description": "API Agente Mais com arquitetura DDD",
   "author": "",
   "private": true,
   "license": "ISC",

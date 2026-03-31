@@ -24,8 +24,8 @@ async function bootstrap() {
   }));
 
   const config = new DocumentBuilder()
-    .setTitle('Jornada de Vendas API')
-    .setDescription('API para sistema Jornada de Vendas com arquitetura DDD')
+    .setTitle('Agente Mais API')
+    .setDescription('API para sistema Agente Mais com arquitetura DDD')
     .setVersion('1.0')
     .addBearerAuth(
       {

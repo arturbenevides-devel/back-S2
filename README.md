@@ -1,6 +1,6 @@
-# Jornada de Vendas API
+# Agente Mais API
 
-API REST para o sistema Jornada de Vendas com NestJS + Prisma + PostgreSQL.
+API REST para o sistema Agente Mais com NestJS + Prisma + PostgreSQL.
 
 ## Arquitetura
 
@@ -53,7 +53,7 @@ EMAIL_SECURE=false
 EMAIL_USER="seu-email@gmail.com"
 EMAIL_PASS="sua-senha-de-app"
 EMAIL_FROM="Develcode Whitelabel"
-FRONTEND_URL="https://jornada-vendas-dev.develcode.com.br"
+FRONTEND_URL="https://agente-mais.develcode.com.br"
 ```
 
 ## Instalação

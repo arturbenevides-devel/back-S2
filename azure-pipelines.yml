@@ -84,8 +84,8 @@ stages:
     - task: AzureAppServiceSettings@1
       displayName: 'Configure Azure App Service Settings'
       inputs:
-        azureSubscription: 'jornada-vendas-service-connection'
-        appName: 'api-jornada-vendas'
+        azureSubscription: 'agente-mais-service-connection'
+        appName: 'api-agente-mais'
         appSettings: |
           [
             {
@@ -101,8 +101,8 @@ stages:
     - task: AzureWebApp@1
       displayName: 'Deploy to Azure App Service'
       inputs:
-        azureSubscription: 'jornada-vendas-service-connection'
-        appName: 'api-jornada-vendas'
+        azureSubscription: 'agente-mais-service-connection'
+        appName: 'api-agente-mais'
         package: '$(Pipeline.Workspace)/app.zip'
         deploymentMethod: 'auto'
 
@@ -120,8 +120,8 @@ stages:
     - task: AzureAppServiceSettings@1
       displayName: 'Configure Azure App Service Settings'
       inputs:
-        azureSubscription: 'jornada-vendas-service-connection-prod'
-        appName: 'api-jornada-vendas-prod'
+        azureSubscription: 'agente-mais-service-connection-prod'
+        appName: 'api-agente-mais-prod'
         appSettings: |
           [
             {
@@ -137,7 +137,7 @@ stages:
     - task: AzureWebApp@1
       displayName: 'Deploy to Azure App Service'
       inputs:
-        azureSubscription: 'jornada-vendas-service-connection-prod'
-        appName: 'api-jornada-vendas-prod'
+        azureSubscription: 'agente-mais-service-connection-prod'
+        appName: 'api-agente-mais-prod'
         package: '$(Pipeline.Workspace)/app.zip'
         deploymentMethod: 'auto'
