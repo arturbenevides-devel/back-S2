@@ -11,6 +11,7 @@ import { ValidateResetTokenUseCase } from './use-cases/validate-reset-token.use-
 import { FirstAccessUseCase } from './use-cases/first-access.use-case';
 import { ChangePasswordByTokenUseCase } from './use-cases/change-password-by-token.use-case';
 import { RegisterTenantUseCase } from './use-cases/register-tenant.use-case';
+import { ForgotPasswordUseCase } from './use-cases/forgot-password.use-case';
 
 @Module({
   imports: [PrismaModule, EmailModule],
@@ -21,6 +22,7 @@ import { RegisterTenantUseCase } from './use-cases/register-tenant.use-case';
     FirstAccessUseCase,
     ChangePasswordByTokenUseCase,
     RegisterTenantUseCase,
+    ForgotPasswordUseCase,
     {
       provide: 'UserRepository',
       useClass: UserRepository,

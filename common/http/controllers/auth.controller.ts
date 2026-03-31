@@ -11,6 +11,8 @@ import { ValidateResetTokenUseCase } from '@apps/core/application/auth/use-cases
 import { FirstAccessUseCase } from '@apps/core/application/auth/use-cases/first-access.use-case';
 import { ChangePasswordByTokenUseCase } from '@apps/core/application/auth/use-cases/change-password-by-token.use-case';
 import { RegisterTenantUseCase } from '@apps/core/application/auth/use-cases/register-tenant.use-case';
+import { ForgotPasswordUseCase } from '@apps/core/application/auth/use-cases/forgot-password.use-case';
+import { ForgotPasswordDto } from '@apps/core/application/auth/dto/forgot-password.dto';
 import { normalizeTenantSchemaCnpj } from '@common/utils/cnpj.util';
 
 @ApiTags('auth')
@@ -22,6 +24,7 @@ export class AuthController {
     private readonly firstAccessUseCase: FirstAccessUseCase,
     private readonly changePasswordByTokenUseCase: ChangePasswordByTokenUseCase,
     private readonly registerTenantUseCase: RegisterTenantUseCase,
+    private readonly forgotPasswordUseCase: ForgotPasswordUseCase,
   ) {}
 
   @Post('login')
@@ -60,6 +63,14 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'Empresa já cadastrada' })
   async registerTenant(@Body() dto: RegisterTenantDto): Promise<{ message: string }> {
     return this.registerTenantUseCase.execute(dto);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Solicitar redefinição de senha (esqueci minha senha)' })
+  @ApiResponse({ status: 200, description: 'Solicitação processada' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ message: string }> {
+    return this.forgotPasswordUseCase.execute(dto);
   }
 
   @Post('validate-reset-token/:token')

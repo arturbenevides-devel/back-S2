@@ -112,11 +112,31 @@ export class EmailService {
       tenantCnpjDigits && /^\d{14}$/.test(tenantCnpjDigits) ? `?cnpj=${tenantCnpjDigits}` : '';
     return this.sendEmail({
       to,
-      subject: 'Bem-vindo ao Develcode Whitelabel',
+      subject: 'Bem-vindo ao Agente Mais',
       template: 'welcome',
       context: {
         userEmail: to,
         confirmationUrl: `${base}${path}${query}`,
+      },
+    });
+  }
+
+  async sendPasswordResetEmail(
+    to: string,
+    userName: string,
+    resetToken: string,
+    tenantCnpjDigits: string,
+  ): Promise<boolean> {
+    const base = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${base}/activate/${resetToken}?cnpj=${tenantCnpjDigits}`;
+    return this.sendEmail({
+      to,
+      subject: 'Redefinição de senha — Agente Mais',
+      template: 'password-reset',
+      context: {
+        userName,
+        userEmail: to,
+        resetUrl,
       },
     });
   }
