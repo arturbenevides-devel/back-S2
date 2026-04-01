@@ -22,9 +22,9 @@ export class ForgotPasswordUseCase {
   ) {}
 
   async execute(dto: ForgotPasswordDto): Promise<{ message: string }> {
-    // Sempre retorna sucesso para não revelar se o email existe
+    // Sempre retorna sucesso para não revelar se os dados existem
     const successMessage =
-      'Se o email estiver cadastrado, você receberá um link para redefinir sua senha.';
+      'Se os dados informados estiverem corretos, você receberá um link para redefinir sua senha.';
 
     const registered = await this.tenantRegistry.isRegistered(dto.cnpj);
     if (!registered) {
