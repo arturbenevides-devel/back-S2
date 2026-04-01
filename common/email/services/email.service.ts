@@ -128,7 +128,7 @@ export class EmailService {
     tenantCnpjDigits: string,
   ): Promise<boolean> {
     const base = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const resetUrl = `${base}/activate/${resetToken}?cnpj=${tenantCnpjDigits}`;
+    const resetUrl = `${base}/reset-password/${resetToken}?cnpj=${tenantCnpjDigits}`;
     return this.sendEmail({
       to,
       subject: 'Redefinição de senha — Agente Mais',

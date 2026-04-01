@@ -60,7 +60,7 @@ export class ForgotPasswordUseCase {
       } catch (error) {
         this.logger.error('Erro ao enviar email de redefinição:', error);
         this.logger.warn(
-          `URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/activate/${resetRequest.resetToken}?cnpj=${dto.cnpj}`,
+          `URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetRequest.resetToken}?cnpj=${dto.cnpj}`,
         );
       }
     });
