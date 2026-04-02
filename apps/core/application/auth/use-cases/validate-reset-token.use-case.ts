@@ -27,8 +27,12 @@ export class ValidateResetTokenUseCase {
         throw new NotFoundException('Token de confirmação não encontrado');
       }
 
+      if (resetRequest.isUsed) {
+        throw new BadRequestException('Este link já foi utilizado');
+      }
+
       if (!resetRequest.isValid()) {
-        throw new BadRequestException('Token de confirmação inválido ou expirado');
+        throw new BadRequestException('Este link expirou');
       }
 
       const user = await this.userRepository.findByIdIncludingInactive(resetRequest.userId);
