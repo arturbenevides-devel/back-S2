@@ -105,10 +105,19 @@ export class WhatsappController {
   @Get('conversations')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Listar conversas visíveis ao atendente' })
+  @ApiOperation({ summary: 'Listar conversas vinculadas ao atendente logado' })
   async listConversations(@Req() req: Request) {
     const schema = getRequiredTenantSchema();
     return this.whatsapp.listConversations(schema, reqUserId(req));
+  }
+
+  @Get('conversations/pending')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Listar conversas pendentes (sem atendente atribuído)' })
+  async listPendingConversations() {
+    const schema = getRequiredTenantSchema();
+    return this.whatsapp.listPendingConversations(schema);
   }
 
   @Post('conversations')

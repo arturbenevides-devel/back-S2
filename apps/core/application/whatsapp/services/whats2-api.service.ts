@@ -229,51 +229,65 @@ export class Whats2ApiService {
   }
 
   /**
-   * Notas de voz (PTT) no WhatsApp usam tipicamente OGG/Opus ou AMR.
-   * Áudio gravado no browser (ex.: audio/webm) não deve usar ptt:true — a API/WhatsApp rejeitam ou não entregam.
+   * Notas de voz (PTT) no WhatsApp usam OGG/Opus ou AMR.
+   * WebM/Opus (gravação do browser) NÃO deve usar ptt:true — o WhatsApp não reconhece WebM como voz nativa.
    */
   private mimeSupportsWhatsAppPtt(mime: string): boolean {
-    const m = mime.toLowerCase();
+    const m = mime.toLowerCase().split(';')[0].trim();
+    if (m.includes('webm') || m.includes('mp3') || m.includes('mpeg') || m.includes('mp4')) return false;
     return m.includes('ogg') || m.includes('opus') || m.includes('amr');
   }
 
   /**
    * Igual ao demo oficial (`develcode-whats2-script/demo.mjs`): `POST .../messages/audio`
    * com `{ to, base64, mime_type }`. Só inclui `ptt: true` para OGG/Opus/AMR (nota de voz).
+   * Tenta múltiplos formatos em ordem para compatibilidade com diferentes versões da API Whats2/Baileys.
    */
   async sendAudio(
     to: string,
     payload: { base64: string; mime_type: string; ptt?: boolean },
   ): Promise<{ message_id?: string; timestamp?: string }> {
     const path = `/instances/${this.instanceId()}/messages/audio`;
+    // Remove especificação de codec para compatibilidade máxima com APIs Baileys
+    const mimeNorm = (payload.mime_type.split(';')[0].trim() || payload.mime_type).toLowerCase();
     const usePtt =
-      payload.ptt !== false && this.mimeSupportsWhatsAppPtt(payload.mime_type);
-    const legacyDemo: Record<string, unknown> = {
-      base64: payload.base64,
-      mime_type: payload.mime_type,
-    };
-    if (usePtt) {
-      legacyDemo.ptt = true;
-    }
-    const modern = {
-      file: payload.base64,
-      mimetype: payload.mime_type,
-      ptt: usePtt,
-    };
-    try {
-      return await this.postJson(path, to, legacyDemo);
-    } catch (first) {
+      payload.ptt !== false && this.mimeSupportsWhatsAppPtt(mimeNorm);
+    const attempts: Record<string, unknown>[] = [
+      // Formato exato do demo oficial (base64 + mime_type sem codec spec)
+      {
+        base64: payload.base64,
+        mime_type: mimeNorm,
+        ...(usePtt ? { ptt: true } : {}),
+      },
+      // Baileys-style: chave "audio" em vez de "base64"
+      {
+        audio: payload.base64,
+        mimetype: mimeNorm,
+        ...(usePtt ? { ptt: true } : {}),
+      },
+      // Modern REST com "file"
+      {
+        file: payload.base64,
+        mimetype: mimeNorm,
+        ...(usePtt ? { ptt: true } : {}),
+      },
+    ];
+    let lastErr: unknown;
+    for (const body of attempts) {
       try {
-        return await this.postJson(path, to, modern);
-      } catch {
-        throw first;
+        return await this.postJson(path, to, body);
+      } catch (e) {
+        lastErr = e;
       }
     }
+    throw lastErr instanceof Error
+      ? lastErr
+      : new ServiceUnavailableException('Falha ao enviar áudio');
   }
 
   /**
-   * Vídeo nativo no WhatsApp: `POST .../messages/video` (mensagem de vídeo), **não** `/messages/document`
-   * (documento aparece como anexo genérico). Tenta vários formatos de corpo aceitos por APIs Baileys/compat.
+   * Vídeo nativo no WhatsApp: tenta `POST .../messages/video` com vários formatos aceitos por APIs Baileys/compat.
+   * Se todos falharem, faz fallback para `POST .../messages/document` com mime_type video/mp4 (como no demo oficial).
    */
   async sendVideo(
     to: string,
@@ -283,16 +297,31 @@ export class Whats2ApiService {
       caption?: string;
       filename?: string;
     },
-  ): Promise<{ message_id?: string; timestamp?: string }> {
-    const path = `/instances/${this.instanceId()}/messages/video`;
+  ): Promise<{ message_id?: string; timestamp?: string; sentAs?: 'video' | 'document' }> {
+    const videoPath = `/instances/${this.instanceId()}/messages/video`;
     const fn = payload.filename?.trim() || 'video.mp4';
     const cap = payload.caption;
-    const attempts: Record<string, unknown>[] = [
+    // Formatos tentados em ordem: demo-style (base64/mime_type), modern (file/mimetype), Baileys-style (video key)
+    const videoAttempts: Record<string, unknown>[] = [
+      // Formato do demo oficial (base64 + mime_type) — sem filename extra
+      {
+        base64: payload.base64,
+        mime_type: payload.mime_type,
+        ...(cap ? { caption: cap } : {}),
+      },
+      // Baileys-style: chave "video" em vez de "base64"/"file"
+      {
+        video: payload.base64,
+        mimetype: payload.mime_type,
+        ...(cap ? { caption: cap } : {}),
+      },
+      // Modern REST com "file"
       {
         file: payload.base64,
         mimetype: payload.mime_type,
         ...(cap ? { caption: cap } : {}),
       },
+      // Com filename
       {
         base64: payload.base64,
         mime_type: payload.mime_type,
@@ -312,21 +341,50 @@ export class Whats2ApiService {
         ...(cap ? { caption: cap } : {}),
       },
     ];
-    let lastErr: unknown;
-    for (const body of attempts) {
+    for (const body of videoAttempts) {
       try {
-        return await this.postJson(path, to, body);
+        const result = await this.postJson(videoPath, to, body);
+        this.logger.debug(`Whats2 vídeo nativo enviado via ${videoPath}`);
+        return { ...result, sentAs: 'video' };
+      } catch {
+        // continua tentando próximo formato
+      }
+    }
+
+    // Fallback: /messages/document (como no demo oficial para vídeo)
+    this.logger.warn(
+      `Whats2: endpoint /messages/video não disponível ou rejeitou todos os formatos. ` +
+      `Enviando como documento (fallback demo-style) — o vídeo chegará como arquivo no WhatsApp.`,
+    );
+    const docPath = `/instances/${this.instanceId()}/messages/document`;
+    const docAttempts: Record<string, unknown>[] = [
+      // Formato exato do demo oficial
+      {
+        base64: payload.base64,
+        mime_type: payload.mime_type,
+        filename: fn,
+        ...(cap ? { caption: cap } : {}),
+      },
+      {
+        file: payload.base64,
+        mimetype: payload.mime_type,
+        filename: fn,
+        ...(cap ? { caption: cap } : {}),
+      },
+    ];
+    let lastErr: unknown;
+    for (const body of docAttempts) {
+      try {
+        const result = await this.postJson(docPath, to, body);
+        return { ...result, sentAs: 'document' };
       } catch (e) {
         lastErr = e;
       }
     }
-    this.logger.error(
-      `Whats2 ${path}: todas as tentativas falharam (vídeo nativo indisponível nesta API).`,
-    );
     throw lastErr instanceof Error
       ? lastErr
       : new ServiceUnavailableException(
-          'Não foi possível enviar vídeo (endpoint /messages/video indisponível ou rejeitou o formato).',
+          'Não foi possível enviar o vídeo (nem como vídeo nativo nem como documento).',
         );
   }
 

@@ -81,6 +81,11 @@ export class WhatsappService {
     return rows.map((r) => this.mapConversation(r));
   }
 
+  async listPendingConversations(schema: string) {
+    const rows = await this.repo.listUnassignedConversations(schema);
+    return rows.map((r) => this.mapConversation(r));
+  }
+
   async getMessages(schema: string, conversationId: string, userId: string) {
     const rows = await this.repo.listMessages(schema, conversationId, userId);
     return rows.map((m) => this.mapMessage(m));
@@ -203,6 +208,11 @@ export class WhatsappService {
     let apiRes: { message_id?: string };
     const to = conv.chat_id;
     const rawB64 = stripDataUrlBase64(body.base64);
+
+    // Track the final format after any transcoding (used for metadata storage)
+    let finalB64 = rawB64;
+    let finalMime = body.mime_type;
+
     if (body.kind === 'image') {
       apiRes = await this.whats2.sendImage(to, {
         base64: rawB64,
@@ -211,7 +221,8 @@ export class WhatsappService {
       });
     } else if (body.kind === 'audio') {
       let audioB64 = rawB64;
-      let audioMime = body.mime_type;
+      // Normaliza o mime_type: remove especificação de codec (ex.: "audio/webm;codecs=opus" → "audio/webm")
+      let audioMime = body.mime_type.split(';')[0].trim().toLowerCase() || body.mime_type;
       if (/webm/i.test(audioMime)) {
         try {
           const out = await transcodeWebmForWhatsappOutbound(rawB64);
@@ -221,13 +232,18 @@ export class WhatsappService {
             `Áudio WebM transcodificado para envio WhatsApp: ${out.mime_type}`,
           );
         } catch (e) {
-          throw new BadRequestException(
-            'Áudio WebM precisa ser convertido no servidor para envio nativo (Whats2: POST /messages/audio). ' +
-              'Instale o ffmpeg no servidor (ex.: sudo apt install ffmpeg) ou defina FFMPEG_PATH. ' +
-              `Detalhe: ${(e as Error).message}`,
+          // ffmpeg não disponível ou falhou — tenta enviar WebM diretamente para a API.
+          // Alguns servidores Whats2/Baileys aceitam WebM natively; se rejeitar, o erro virá da API.
+          this.logger.warn(
+            `Transcodificação de áudio WebM falhou (ffmpeg ausente?): ${(e as Error).message}. ` +
+              `Enviando áudio no formato original (${audioMime}). ` +
+              `Para qualidade máxima, instale ffmpeg: sudo apt install ffmpeg`,
           );
+          // Mantém audioB64 = rawB64 e audioMime já normalizado como "audio/webm"
         }
       }
+      finalB64 = audioB64;
+      finalMime = audioMime;
       apiRes = await this.whats2.sendAudio(to, {
         base64: audioB64,
         mime_type: audioMime,
@@ -253,6 +269,8 @@ export class WhatsappService {
           );
         }
       }
+      finalB64 = videoB64;
+      finalMime = videoMime;
       apiRes = await this.whats2.sendVideo(to, {
         base64: videoB64,
         mime_type: videoMime,
@@ -260,6 +278,10 @@ export class WhatsappService {
         filename: videoFilename,
       });
     }
+    const videoSentAs =
+      body.kind === 'video' && 'sentAs' in apiRes
+        ? (apiRes as { sentAs?: 'video' | 'document' }).sentAs
+        : undefined;
     const msgId = randomUUID();
     const messageType =
       body.kind === 'image' ? 'image' : body.kind === 'audio' ? 'audio' : 'video';
@@ -269,10 +291,11 @@ export class WhatsappService {
         : body.kind === 'audio'
           ? '🎵 Áudio'
           : body.caption || '🎬 Vídeo';
-    const inlinePreview = dataUrlForInlinePreview(body.mime_type, rawB64);
+    // Use the final (transcoded) format for inline preview and storage so the CRM plays it correctly
+    const inlinePreview = dataUrlForInlinePreview(finalMime, finalB64);
     let decodedLen = 0;
     try {
-      decodedLen = Buffer.from(rawB64, 'base64').length;
+      decodedLen = Buffer.from(finalB64, 'base64').length;
     } catch {
       decodedLen = 0;
     }
@@ -290,9 +313,10 @@ export class WhatsappService {
       status: 'sent',
       timestamp: new Date(),
       metadata: {
-        mime_type: body.mime_type,
+        mime_type: finalMime,
         outbound: true,
-        ...(storeMediaBase64 ? { media_base64: rawB64 } : {}),
+        ...(videoSentAs ? { sent_as: videoSentAs } : {}),
+        ...(storeMediaBase64 ? { media_base64: finalB64 } : {}),
         ...(inlinePreview ? { downloadUrl: inlinePreview } : {}),
       },
     });

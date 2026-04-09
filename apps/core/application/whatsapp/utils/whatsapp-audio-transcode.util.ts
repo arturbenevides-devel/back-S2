@@ -5,7 +5,11 @@ import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import ffmpegStatic from 'ffmpeg-static';
+// ffmpeg-static é um módulo CJS que exporta o caminho como string diretamente.
+// O import padrão do TypeScript compila para `.default`, que fica undefined em runtime.
+// Usando require() diretamente para garantir a string correta.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const ffmpegStaticPath: string | null = require('ffmpeg-static');
 
 const execFileAsync = promisify(execFile);
 
@@ -20,12 +24,8 @@ export function resolveFfmpegExecutable(): string {
   if (fromEnv && existsSync(fromEnv)) {
     return fromEnv;
   }
-  if (
-    ffmpegStatic &&
-    typeof ffmpegStatic === 'string' &&
-    existsSync(ffmpegStatic)
-  ) {
-    return ffmpegStatic;
+  if (ffmpegStaticPath && typeof ffmpegStaticPath === 'string' && existsSync(ffmpegStaticPath)) {
+    return ffmpegStaticPath;
   }
   try {
     const out = execFileSync('which', ['ffmpeg'], {

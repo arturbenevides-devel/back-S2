@@ -52,7 +52,28 @@ export class WhatsappRepository {
             LIMIT 1
           ) AS last_message_preview
         FROM whatsapp_conversations c
-        WHERE c."assigned_to" IS NULL OR c."assigned_to" = ${userId}
+        WHERE c."assigned_to" = ${userId}
+        ORDER BY c."updated_at" DESC
+      `;
+    });
+  }
+
+  async listUnassignedConversations(
+    schema: string,
+  ): Promise<(WhatsappConversationRow & { last_message_preview: string | null })[]> {
+    return this.runner.run(schema, async (tx) => {
+      return tx.$queryRaw<
+        (WhatsappConversationRow & { last_message_preview: string | null })[]
+      >`
+        SELECT c.*,
+          (
+            SELECT m.content FROM whatsapp_messages m
+            WHERE m.conversation_id = c.id
+            ORDER BY m.timestamp DESC NULLS LAST
+            LIMIT 1
+          ) AS last_message_preview
+        FROM whatsapp_conversations c
+        WHERE c."assigned_to" IS NULL
         ORDER BY c."updated_at" DESC
       `;
     });
@@ -216,10 +237,11 @@ export class WhatsappRepository {
     userId: string,
   ): Promise<WhatsappMessageRow[]> {
     return this.runner.run(schema, async (tx) => {
+      // Allow access to own conversations OR unassigned ones (so attendants can preview before claiming)
       const conv = await tx.$queryRaw<{ id: string }[]>`
         SELECT id FROM whatsapp_conversations
         WHERE id = ${conversationId}
-          AND ("assigned_to" IS NULL OR "assigned_to" = ${userId})
+          AND ("assigned_to" = ${userId} OR "assigned_to" IS NULL)
         LIMIT 1
       `;
       if (!conv.length) return [];
