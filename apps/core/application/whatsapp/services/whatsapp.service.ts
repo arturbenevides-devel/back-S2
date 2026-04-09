@@ -15,6 +15,8 @@ import {
   digitsOnlyForWhatsapp,
   validateWhatsappDestinationDigits,
 } from '../utils/whatsapp-phone.util';
+import { transcodeWebmForWhatsappOutbound } from '../utils/whatsapp-audio-transcode.util';
+import { transcodeWebmVideoToMp4 } from '../utils/whatsapp-video-transcode.util';
 
 function normalizeChatId(input: string): string {
   const t = input.trim();
@@ -30,6 +32,28 @@ function normalizeChatId(input: string): string {
 
 function phoneFromChatId(chatId: string): string {
   return chatId.split('@')[0] || chatId;
+}
+
+const MAX_DATA_URL_BYTES = 32 * 1024 * 1024;
+const MAX_AUDIO_MEDIA_BASE64_BYTES = 8 * 1024 * 1024;
+
+function stripDataUrlBase64(input: string): string {
+  const t = input.trim();
+  const idx = t.indexOf('base64,');
+  if (t.startsWith('data:') && idx !== -1) {
+    return t.slice(idx + 7).replace(/\s/g, '');
+  }
+  return t.replace(/\s/g, '');
+}
+
+function dataUrlForInlinePreview(mime: string, base64Raw: string): string | undefined {
+  try {
+    const buf = Buffer.from(base64Raw, 'base64');
+    if (buf.length > MAX_DATA_URL_BYTES) return undefined;
+    return `data:${mime};base64,${base64Raw}`;
+  } catch {
+    return undefined;
+  }
 }
 
 @Injectable()
@@ -178,23 +202,62 @@ export class WhatsappService {
     if (!conv) throw new NotFoundException('Conversa não encontrada');
     let apiRes: { message_id?: string };
     const to = conv.chat_id;
+    const rawB64 = stripDataUrlBase64(body.base64);
     if (body.kind === 'image') {
       apiRes = await this.whats2.sendImage(to, {
-        base64: body.base64,
+        base64: rawB64,
         mime_type: body.mime_type,
         caption: body.caption,
       });
     } else if (body.kind === 'audio') {
+      let audioB64 = rawB64;
+      let audioMime = body.mime_type;
+      if (/webm/i.test(audioMime)) {
+        try {
+          const out = await transcodeWebmForWhatsappOutbound(rawB64);
+          audioB64 = out.base64;
+          audioMime = out.mime_type;
+          this.logger.log(
+            `Áudio WebM transcodificado para envio WhatsApp: ${out.mime_type}`,
+          );
+        } catch (e) {
+          throw new BadRequestException(
+            'Áudio WebM precisa ser convertido no servidor para envio nativo (Whats2: POST /messages/audio). ' +
+              'Instale o ffmpeg no servidor (ex.: sudo apt install ffmpeg) ou defina FFMPEG_PATH. ' +
+              `Detalhe: ${(e as Error).message}`,
+          );
+        }
+      }
       apiRes = await this.whats2.sendAudio(to, {
-        base64: body.base64,
-        mime_type: body.mime_type,
+        base64: audioB64,
+        mime_type: audioMime,
       });
     } else {
-      apiRes = await this.whats2.sendDocument(to, {
-        base64: body.base64,
-        mime_type: body.mime_type,
-        filename: body.filename || 'video.mp4',
+      let videoB64 = rawB64;
+      let videoMime = body.mime_type;
+      let videoFilename = body.filename?.trim() || 'video.mp4';
+      if (/webm/i.test(videoMime)) {
+        try {
+          const out = await transcodeWebmVideoToMp4(rawB64);
+          videoB64 = out.base64;
+          videoMime = out.mime_type;
+          if (!/\.mp4$/i.test(videoFilename)) {
+            videoFilename = 'video.mp4';
+          }
+          this.logger.log('Vídeo WebM transcodificado para MP4 (envio nativo /messages/video).');
+        } catch (e) {
+          throw new BadRequestException(
+            'Vídeo WebM precisa ser convertido para MP4 no servidor para exibição nativa no WhatsApp. ' +
+              'Instale o ffmpeg (ex.: sudo apt install ffmpeg) ou defina FFMPEG_PATH. ' +
+              `Detalhe: ${(e as Error).message}`,
+          );
+        }
+      }
+      apiRes = await this.whats2.sendVideo(to, {
+        base64: videoB64,
+        mime_type: videoMime,
         caption: body.caption,
+        filename: videoFilename,
       });
     }
     const msgId = randomUUID();
@@ -206,6 +269,17 @@ export class WhatsappService {
         : body.kind === 'audio'
           ? '🎵 Áudio'
           : body.caption || '🎬 Vídeo';
+    const inlinePreview = dataUrlForInlinePreview(body.mime_type, rawB64);
+    let decodedLen = 0;
+    try {
+      decodedLen = Buffer.from(rawB64, 'base64').length;
+    } catch {
+      decodedLen = 0;
+    }
+    const storeMediaBase64 =
+      body.kind === 'audio'
+        ? decodedLen > 0 && decodedLen <= MAX_AUDIO_MEDIA_BASE64_BYTES
+        : decodedLen > 0 && decodedLen <= MAX_DATA_URL_BYTES;
     await this.repo.insertMessage(schema, {
       id: msgId,
       conversation_id: conversationId,
@@ -218,6 +292,8 @@ export class WhatsappService {
       metadata: {
         mime_type: body.mime_type,
         outbound: true,
+        ...(storeMediaBase64 ? { media_base64: rawB64 } : {}),
+        ...(inlinePreview ? { downloadUrl: inlinePreview } : {}),
       },
     });
     await this.repo.touchConversationUpdated(schema, conversationId);
@@ -415,6 +491,16 @@ export class WhatsappService {
       (m.notifyName as string) ||
       null;
 
+    let mediaBase64 = typeof m.media_base64 === 'string' ? m.media_base64 : undefined;
+    if (!mediaBase64 && inner) {
+      const pick = (obj: Record<string, unknown> | undefined) =>
+        obj && typeof obj.base64 === 'string' ? (obj.base64 as string) : undefined;
+      mediaBase64 =
+        pick(inner.audioMessage as Record<string, unknown> | undefined) ||
+        pick(inner.videoMessage as Record<string, unknown> | undefined) ||
+        pick(inner.imageMessage as Record<string, unknown> | undefined);
+    }
+
     return {
       ...m,
       key: m.key,
@@ -425,6 +511,7 @@ export class WhatsappService {
       pushName,
       push_name: pushName,
       media_type: mediaType,
+      media_base64: mediaBase64,
       is_group: remoteJid.endsWith('@g.us'),
       message_id: key?.id,
     };
@@ -607,10 +694,16 @@ export class WhatsappService {
   }
 
   private mapMessage(m: WhatsappMessageRow) {
-    const meta =
-      typeof m.metadata === 'object' && m.metadata !== null
-        ? (m.metadata as Record<string, unknown>)
-        : {};
+    let meta: Record<string, unknown> = {};
+    if (typeof m.metadata === 'string') {
+      try {
+        meta = JSON.parse(m.metadata) as Record<string, unknown>;
+      } catch {
+        meta = {};
+      }
+    } else if (typeof m.metadata === 'object' && m.metadata !== null) {
+      meta = m.metadata as Record<string, unknown>;
+    }
     return {
       id: m.id,
       conversation_id: m.conversation_id,

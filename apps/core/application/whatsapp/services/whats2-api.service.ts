@@ -206,14 +206,128 @@ export class Whats2ApiService {
     to: string,
     payload: { base64: string; mime_type: string; caption?: string },
   ): Promise<{ message_id?: string; timestamp?: string }> {
-    return this.postJson(`/instances/${this.instanceId()}/messages/image`, to, payload);
+    const path = `/instances/${this.instanceId()}/messages/image`;
+    const modern = {
+      file: payload.base64,
+      mimetype: payload.mime_type,
+      ...(payload.caption ? { caption: payload.caption } : {}),
+    };
+    const legacy = {
+      base64: payload.base64,
+      mime_type: payload.mime_type,
+      ...(payload.caption ? { caption: payload.caption } : {}),
+    };
+    try {
+      return await this.postJson(path, to, modern);
+    } catch (first) {
+      try {
+        return await this.postJson(path, to, legacy);
+      } catch {
+        throw first;
+      }
+    }
   }
 
+  /**
+   * Notas de voz (PTT) no WhatsApp usam tipicamente OGG/Opus ou AMR.
+   * Áudio gravado no browser (ex.: audio/webm) não deve usar ptt:true — a API/WhatsApp rejeitam ou não entregam.
+   */
+  private mimeSupportsWhatsAppPtt(mime: string): boolean {
+    const m = mime.toLowerCase();
+    return m.includes('ogg') || m.includes('opus') || m.includes('amr');
+  }
+
+  /**
+   * Igual ao demo oficial (`develcode-whats2-script/demo.mjs`): `POST .../messages/audio`
+   * com `{ to, base64, mime_type }`. Só inclui `ptt: true` para OGG/Opus/AMR (nota de voz).
+   */
   async sendAudio(
     to: string,
-    payload: { base64: string; mime_type: string },
+    payload: { base64: string; mime_type: string; ptt?: boolean },
   ): Promise<{ message_id?: string; timestamp?: string }> {
-    return this.postJson(`/instances/${this.instanceId()}/messages/audio`, to, payload);
+    const path = `/instances/${this.instanceId()}/messages/audio`;
+    const usePtt =
+      payload.ptt !== false && this.mimeSupportsWhatsAppPtt(payload.mime_type);
+    const legacyDemo: Record<string, unknown> = {
+      base64: payload.base64,
+      mime_type: payload.mime_type,
+    };
+    if (usePtt) {
+      legacyDemo.ptt = true;
+    }
+    const modern = {
+      file: payload.base64,
+      mimetype: payload.mime_type,
+      ptt: usePtt,
+    };
+    try {
+      return await this.postJson(path, to, legacyDemo);
+    } catch (first) {
+      try {
+        return await this.postJson(path, to, modern);
+      } catch {
+        throw first;
+      }
+    }
+  }
+
+  /**
+   * Vídeo nativo no WhatsApp: `POST .../messages/video` (mensagem de vídeo), **não** `/messages/document`
+   * (documento aparece como anexo genérico). Tenta vários formatos de corpo aceitos por APIs Baileys/compat.
+   */
+  async sendVideo(
+    to: string,
+    payload: {
+      base64: string;
+      mime_type: string;
+      caption?: string;
+      filename?: string;
+    },
+  ): Promise<{ message_id?: string; timestamp?: string }> {
+    const path = `/instances/${this.instanceId()}/messages/video`;
+    const fn = payload.filename?.trim() || 'video.mp4';
+    const cap = payload.caption;
+    const attempts: Record<string, unknown>[] = [
+      {
+        file: payload.base64,
+        mimetype: payload.mime_type,
+        ...(cap ? { caption: cap } : {}),
+      },
+      {
+        base64: payload.base64,
+        mime_type: payload.mime_type,
+        filename: fn,
+        ...(cap ? { caption: cap } : {}),
+      },
+      {
+        file: payload.base64,
+        mimetype: payload.mime_type,
+        filename: fn,
+        ...(cap ? { caption: cap } : {}),
+      },
+      {
+        file: payload.base64,
+        mimetype: payload.mime_type,
+        fileName: fn,
+        ...(cap ? { caption: cap } : {}),
+      },
+    ];
+    let lastErr: unknown;
+    for (const body of attempts) {
+      try {
+        return await this.postJson(path, to, body);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    this.logger.error(
+      `Whats2 ${path}: todas as tentativas falharam (vídeo nativo indisponível nesta API).`,
+    );
+    throw lastErr instanceof Error
+      ? lastErr
+      : new ServiceUnavailableException(
+          'Não foi possível enviar vídeo (endpoint /messages/video indisponível ou rejeitou o formato).',
+        );
   }
 
   async sendDocument(
@@ -225,7 +339,28 @@ export class Whats2ApiService {
       caption?: string;
     },
   ): Promise<{ message_id?: string; timestamp?: string }> {
-    return this.postJson(`/instances/${this.instanceId()}/messages/document`, to, payload);
+    const path = `/instances/${this.instanceId()}/messages/document`;
+    const legacy: Record<string, unknown> = {
+      base64: payload.base64,
+      mime_type: payload.mime_type,
+      filename: payload.filename,
+      ...(payload.caption ? { caption: payload.caption } : {}),
+    };
+    const modern = {
+      file: payload.base64,
+      mimetype: payload.mime_type,
+      filename: payload.filename,
+      ...(payload.caption ? { caption: payload.caption } : {}),
+    };
+    try {
+      return await this.postJson(path, to, legacy);
+    } catch (first) {
+      try {
+        return await this.postJson(path, to, modern);
+      } catch {
+        throw first;
+      }
+    }
   }
 
   private async postJson(
