@@ -13,7 +13,7 @@
     "start": "nest start server",
     "start:dev": "nest start server --watch",
     "start:debug": "nest start server --debug --watch",
-    "start:prod": "node dist/apps/server/main",
+    "start:prod": "NODE_ENV=production node dist/apps/server/main",
     "lint": "eslint \"{apps,common,config}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
