@@ -2,15 +2,27 @@ import './tracing';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
+/** Webhooks Whats2 podem incluir mídia/base64; o padrão do Express (~100kb) gera PayloadTooLargeError. */
+const JSON_BODY_LIMIT = process.env.HTTP_JSON_BODY_LIMIT ?? '25mb';
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
+  app.useBodyParser('urlencoded', { extended: true, limit: JSON_BODY_LIMIT });
 
   app.enableCors({
     origin: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-tenant-schema'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'x-tenant-schema',
+      'ngrok-skip-browser-warning',
+    ],
     credentials: true,
   });
 
