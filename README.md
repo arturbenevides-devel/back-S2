@@ -211,3 +211,84 @@ npm run test
 npm run test:watch
 npm run test:cov
 ```
+
+---
+
+## Ambientes: desenvolvimento e produção (`NODE_ENV`)
+
+O comportamento da API também depende de `NODE_ENV` no código de arranque (`main.ts`, webhook Whats2, CORS):
+
+| Aspecto | `NODE_ENV=development` | `NODE_ENV=production` |
+|--------|-------------------------|-------------------------|
+| Swagger UI (`/api`) | Habilitado | Desabilitado |
+| Níveis de log do Nest | `error`, `warn`, `log`, `debug`, `verbose` | `error`, `warn`, `log` |
+| CORS | `origin: true` (qualquer origem) | Lista restrita quando `CORS_ORIGINS` / `FRONTEND_URL` estão configurados (veja abaixo) |
+| Header `ngrok-skip-browser-warning` no CORS | Incluído em `allowedHeaders` | Não incluído |
+| `JWT_SECRET` | Pode usar valor de exemplo em `.env` local | Obrigatório valor forte; a API recusa o placeholder `your-super-secret-jwt-key-here` |
+| Registro automático do webhook Whats2 no boot (`WhatsappBootstrapService`) | Respeita `WHATS2_AUTO_REGISTER_WEBHOOK` | Não executa (configure o webhook no painel Whats2 ou no pipeline) |
+
+### Variáveis relacionadas a CORS em produção
+
+- `CORS_ORIGINS`: lista separada por vírgulas com origens exatas permitidas.
+- `FRONTEND_URL`: uma URL extra incluída na lista permitida.
+- Se nenhuma das duas estiver definida em produção, o CORS pode permanecer permissivo (`origin: true`) para não quebrar deploys legados; em novos ambientes, prefira configurar `CORS_ORIGINS` ou `FRONTEND_URL`.
+
+### Como definir `NODE_ENV`
+
+- Desenvolvimento local: `NODE_ENV=development` no `.env` (ou omita).
+- Produção: `NODE_ENV=production`. O script `npm run start:prod` no `package.json` define `NODE_ENV=production` ao executar o Node.
+
+### Testar localmente com foco em `NODE_ENV` (complemento)
+
+```bash
+cd back-S2
+npm install
+npm run prisma:deploy
+npm run tenants:migrate
+npm run prisma:seed
+npm run start:dev
+```
+
+- API: `http://localhost:3000/api/v1`
+- Swagger (somente se não for produção): `http://localhost:3000/api`
+
+Build e subida como produção local:
+
+```bash
+npm run build
+npm run start:prod
+```
+
+Use `JWT_SECRET` diferente do placeholder ao testar `start:prod`.
+
+---
+
+## Integração WhatsApp (Whats2): envio e recepção em desenvolvimento vs produção
+
+Esta secção **complementa** a configuração geral: o WhatsApp usa a API Whats2 para envio e **webhook HTTP** para recepção. O front consome **SSE** (`GET /api/v1/whatsapp/stream`) e há polling de segurança no front (intervalo maior em build de produção).
+
+### Desenvolvimento
+
+**Envio (agente → cliente):** variáveis `WHATS2_API_URL`, `WHATS2_INSTANCE_ID`, `WHATS2_EMAIL`, `WHATS2_PASSWORD`, e `WHATS2_WEBHOOK_TENANT_CNPJ` com os **mesmos 14 dígitos** do CNPJ do login (o JWT traz `tenantSchema`; CNPJ divergente grava noutro schema).
+
+**Recepção (cliente → sistema):** o Whats2 precisa de `POST` numa URL **pública**. Em local use túnel (ex.: ngrok). Defina `WEBHOOK_PUBLIC_BASE_URL` com a base pública (sem path; o path do webhook é `/api/v1/webhooks/whats2`). Opcional: `WHATS2_AUTO_REGISTER_WEBHOOK=true` para registrar a URL ao subir a API em desenvolvimento. Opcional: `WHATS2_WEBHOOK_SECRET` e query `token` na URL.
+
+**Front + ngrok:** em desenvolvimento o CORS permite o header `ngrok-skip-browser-warning` para o browser não receber a página de aviso do ngrok em vez de JSON/SSE.
+
+### Produção
+
+**Envio:** mesmas variáveis Whats2; `JWT_SECRET` forte obrigatório.
+
+**Recepção:** URL estável (HTTPS) no painel Whats2 apontando para `https://<domínio>/api/v1/webhooks/whats2` (e `token` se usar segredo). Sem depender de ngrok. CORS com `CORS_ORIGINS` / `FRONTEND_URL`. O registro automático do webhook **no boot** não corre em produção.
+
+**Front:** `VITE_API_URL` com a API pública; polling de fallback mais espaçado que em desenvolvimento; SSE continua como canal principal de eventos.
+
+Variáveis de exemplo (além das já listadas em «Configuração»):
+
+```env
+WHATS2_WEBHOOK_TENANT_CNPJ="00000000000000"
+WEBHOOK_PUBLIC_BASE_URL="https://sua-url-publica"
+WHATS2_AUTO_REGISTER_WEBHOOK=true
+```
+
+Em produção, prefira configurar o webhook no painel Whats2 em vez de depender só do arranque da API.
