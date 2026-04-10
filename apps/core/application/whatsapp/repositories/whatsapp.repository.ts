@@ -200,10 +200,13 @@ export class WhatsappRepository {
   ): Promise<void> {
     return this.runner.run(schema, async (tx) => {
       const metaJson = JSON.stringify(msg.metadata ?? {});
+      // O índice parcial "whatsapp_messages_conv_external_msg" cobre (conversation_id, message_id)
+      // WHERE message_id IS NOT NULL. O ON CONFLICT deve replicar exactamente essa condição.
       await tx.$executeRawUnsafe(
         `INSERT INTO whatsapp_messages (
           id, conversation_id, message_id, content, sender, message_type, status, timestamp, metadata
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+        ON CONFLICT (conversation_id, message_id) WHERE message_id IS NOT NULL DO NOTHING`,
         msg.id,
         msg.conversation_id,
         msg.message_id,
@@ -225,7 +228,8 @@ export class WhatsappRepository {
     return this.runner.run(schema, async (tx) => {
       const rows = await tx.$queryRaw<{ c: bigint }[]>`
         SELECT COUNT(*)::bigint AS c FROM whatsapp_messages
-        WHERE conversation_id = ${conversationId} AND message_id = ${externalMessageId}
+        WHERE conversation_id = ${conversationId}
+          AND LOWER(message_id) = LOWER(${externalMessageId})
       `;
       return Number(rows[0]?.c ?? 0) > 0;
     });

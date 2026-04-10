@@ -20,13 +20,16 @@ import { transcodeWebmVideoToMp4 } from '../utils/whatsapp-video-transcode.util'
 
 function normalizeChatId(input: string): string {
   const t = input.trim();
+  // Grupos: 1234567890-1234567890@g.us
   if (t.includes('@g.us')) {
-    const local = t.split('@')[0].replace(/\D/g, '');
+    // Mantém o formato "números-números@g.us" sem modificar (grupos podem ter hífen)
+    const local = t.split('@')[0];
     return `${local}@g.us`;
   }
-  const rawDigits = t.includes('@')
-    ? t.split('@')[0].replace(/\D/g, '')
-    : t.replace(/\D/g, '');
+  // Extrai a parte local antes do '@' e remove sufixo de dispositivo multi-device (ex: ":10")
+  const localRaw = t.includes('@') ? t.split('@')[0] : t;
+  const localWithoutDevice = localRaw.split(':')[0]; // remove ":XX" do multi-device
+  const rawDigits = localWithoutDevice.replace(/\D/g, '');
   return `${rawDigits}@s.whatsapp.net`;
 }
 
@@ -493,9 +496,12 @@ export class WhatsappService {
     if (remoteJid === 'status@broadcast') {
       return null;
     }
-    if (key?.fromMe === true) {
+    // Apenas conversas 1-a-1; grupos são ignorados completamente
+    if (remoteJid.endsWith('@g.us') || remoteJid.endsWith('@broadcast')) {
       return null;
     }
+    // Não descarta fromMe — passa a flag para ingestInboundMessage tratar como sender:'user'
+    const fromMe = key?.fromMe === true;
 
     const inner = m.message as Record<string, unknown> | undefined;
     if (inner?.reactionMessage || inner?.protocolMessage) {
@@ -609,6 +615,7 @@ export class WhatsappService {
       mime_type: mimeType,
       is_group: remoteJid.endsWith('@g.us'),
       message_id: key?.id,
+      fromMe,
     };
   }
 
@@ -650,20 +657,61 @@ export class WhatsappService {
     schema: string,
     data: Record<string, unknown>,
   ): Promise<void> {
+    // Log do payload completo para diagnóstico de formatos inesperados do webhook
+    this.logger.debug(
+      `[ingest] raw payload keys=${Object.keys(data).join(',')} ` +
+      `chat=${data.chat} remoteJid=${data.remoteJid} from=${data.from} ` +
+      `fromMe=${data.fromMe} from_me=${data.from_me} ` +
+      `key.fromMe=${(data.key as { fromMe?: unknown } | undefined)?.fromMe}`,
+    );
+
+    // --- Detecta fromMe com suporte a booleano e string ---
+    const rawFromMe =
+      (data.fromMe as unknown) ??
+      (data.from_me as unknown) ??
+      (data.key as { fromMe?: unknown } | undefined)?.fromMe;
+    const isFromMe = rawFromMe === true || rawFromMe === 'true';
+
+    // Para mensagens fromMe (atendente → cliente) o campo `from` é o remetente (a nossa instância),
+    // não o cliente. Usamos `chat` ou `remoteJid` que apontam sempre para o interlocutor.
     const chat =
       (data.chat as string) ||
       (data.remoteJid as string) ||
-      (data.from as string) ||
+      // Só usa `from` se NÃO for fromMe (caso contrário seria o JID da nossa instância)
+      (!isFromMe ? (data.from as string) : undefined) ||
       (data.key as { remoteJid?: string } | undefined)?.remoteJid;
+
     if (!chat) {
       this.logger.warn('Webhook message sem chat/from — payload ignorado');
       return;
     }
+
+    // --- Rejeita grupos: apenas conversas 1-a-1 são suportadas ---
+    // Detecta grupos por sufixo @g.us/@broadcast E por hífen no local part
+    // (grupos têm JID no formato "numero-timestamp@g.us"; alguns providers enviam com sufixo errado)
+    const chatLocalPart = chat.split('@')[0];
+    const isGroup =
+      Boolean(data.is_group) ||
+      chat.endsWith('@g.us') ||
+      chat.endsWith('@broadcast') ||
+      chatLocalPart.includes('-'); // formato grupo: "2885806986-0446"
+
+    if (isGroup) {
+      this.logger.debug(`Webhook de grupo ignorado: chat="${chat}"`);
+      return;
+    }
+
+    // --- Valida que o chat_id normalizado é um número de telefone plausível (7-15 dígitos) ---
+    const normalizedLocal = chatLocalPart.split(':')[0].replace(/\D/g, '');
+    if (normalizedLocal.length < 7 || normalizedLocal.length > 15) {
+      this.logger.warn(`Webhook ignorado: chat_id "${chat}" tem ${normalizedLocal.length} dígitos — JID inválido`);
+      return;
+    }
+
     const messageId =
       (data.message_id as string) ||
       ((data.key as { id?: string } | undefined)?.id as string | undefined) ||
       randomUUID();
-    const isGroup = Boolean(data.is_group);
     const pushName =
       (data.push_name as string) ||
       (data.pushName as string) ||
@@ -813,7 +861,19 @@ export class WhatsappService {
     const chatId = normalizeChatId(chat);
     let conv = await this.repo.findConversationByChatId(schema, chatId);
     const now = new Date();
-    if (!conv) {
+
+    if (isFromMe) {
+      // Mensagem enviada pelo atendente fora do sistema (ex: app mobile da instância registada).
+      // Nunca criamos uma nova conversa para mensagens outbound — apenas adicionamos ao histórico
+      // da conversa existente como sender:'user'. Se a conversa ainda não existe, ignoramos.
+      if (!conv) {
+        this.logger.debug(
+          `[fromMe] Mensagem do atendente para chat_id="${chatId}" sem conversa existente — ignorada`,
+        );
+        return;
+      }
+    } else if (!conv) {
+      // Mensagem do cliente sem conversa prévia → cria nova entrada na Fila de Entrada
       const id = randomUUID();
       await this.repo.createConversation(schema, {
         id,
@@ -832,6 +892,7 @@ export class WhatsappService {
       });
       conv = await this.repo.findConversationByChatId(schema, chatId);
     } else {
+      // Conversa existente com mensagem do cliente → atualiza atividade
       await this.repo.bumpInboundActivity(schema, conv.id, now, pushName);
     }
     if (!conv) return;
@@ -846,7 +907,7 @@ export class WhatsappService {
       conversation_id: conv.id,
       message_id: extId || null,
       content,
-      sender: 'customer',
+      sender: isFromMe ? 'user' : 'customer',
       message_type: msgType,
       status: 'delivered',
       timestamp: now,
