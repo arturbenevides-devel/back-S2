@@ -328,6 +328,42 @@ export class WhatsappService {
     return { ok: true, messageId: msgId };
   }
 
+  async getMessageMediaProxy(
+    schema: string,
+    messageId: string,
+  ): Promise<{ base64: string; mimeType: string; filename?: string } | null> {
+    const msg = await this.repo.findMessageById(schema, messageId);
+    if (!msg) return null;
+
+    let meta: Record<string, unknown> = {};
+    if (typeof msg.metadata === 'string') {
+      try { meta = JSON.parse(msg.metadata) as Record<string, unknown>; } catch { /* */ }
+    } else if (typeof msg.metadata === 'object' && msg.metadata !== null) {
+      meta = msg.metadata as Record<string, unknown>;
+    }
+
+    const mediaUrl = meta.media_url as string | undefined;
+    if (!mediaUrl) return null;
+
+    const token = await this.whats2.getBearerToken();
+    const res = await fetch(mediaUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      this.logger.warn(`Media proxy: download falhou ${res.status} para ${mediaUrl}`);
+      return null;
+    }
+    const buf = await res.arrayBuffer();
+    const mimeType =
+      res.headers.get('content-type')?.split(';')[0].trim() ||
+      (meta.mime_type as string | undefined) ||
+      'application/octet-stream';
+    return {
+      base64: Buffer.from(buf).toString('base64'),
+      mimeType,
+    };
+  }
+
   async handleWebhookPayload(body: Record<string, unknown>): Promise<void> {
     const normalized = this.normalizeWhats2Webhook(body);
     const expected = this.config.get<string>('WHATS2_INSTANCE_ID')?.trim();
@@ -489,7 +525,8 @@ export class WhatsappService {
         }
       }
       if (!mediaType && inner.audioMessage) {
-        mediaType = 'audio';
+        const audioMsg = inner.audioMessage as { ptt?: boolean } | undefined;
+        mediaType = audioMsg?.ptt ? 'ptt' : 'audio';
         text = text || '🎵 Áudio';
       }
       if (!mediaType) {
@@ -516,14 +553,42 @@ export class WhatsappService {
       null;
 
     let mediaBase64 = typeof m.media_base64 === 'string' ? m.media_base64 : undefined;
-    if (!mediaBase64 && inner) {
-      const pick = (obj: Record<string, unknown> | undefined) =>
-        obj && typeof obj.base64 === 'string' ? (obj.base64 as string) : undefined;
-      mediaBase64 =
-        pick(inner.audioMessage as Record<string, unknown> | undefined) ||
-        pick(inner.videoMessage as Record<string, unknown> | undefined) ||
-        pick(inner.imageMessage as Record<string, unknown> | undefined);
+    let mediaUrl = typeof m.media_url === 'string' ? m.media_url : (typeof m.mediaUrl === 'string' ? m.mediaUrl : undefined);
+    let mimeType = typeof m.mime_type === 'string' ? m.mime_type : (typeof m.mimetype === 'string' ? m.mimetype : undefined);
+
+    if (inner) {
+      type MediaMsg = { base64?: string; url?: string; mimetype?: string; mime_type?: string } | undefined;
+      const pickMsg = (obj: MediaMsg) => ({
+        b64: obj?.base64,
+        url: obj?.url,
+        mime: obj?.mimetype || obj?.mime_type,
+      });
+
+      const audio = pickMsg(inner.audioMessage as MediaMsg);
+      const video = pickMsg(inner.videoMessage as MediaMsg);
+      const image = pickMsg(inner.imageMessage as MediaMsg);
+      const doc = pickMsg(inner.documentMessage as MediaMsg);
+      const sticker = pickMsg(inner.stickerMessage as MediaMsg);
+
+      if (!mediaBase64) {
+        mediaBase64 = audio.b64 || video.b64 || image.b64 || doc.b64 || sticker.b64;
+      }
+      if (!mediaUrl) {
+        mediaUrl = audio.url || video.url || image.url || doc.url || sticker.url;
+      }
+      if (!mimeType) {
+        mimeType = audio.mime || video.mime || image.mime || doc.mime || sticker.mime;
+      }
     }
+
+    // ptt (push-to-talk) é nota de voz — trata como audio
+    const effectiveMediaType =
+      mediaType === 'ptt' ||
+      mediaType === 'voice' ||
+      mediaType === 'voiceNote' ||
+      mediaType === 'voice_note'
+        ? 'audio'
+        : mediaType;
 
     return {
       ...m,
@@ -534,8 +599,10 @@ export class WhatsappService {
       body: text,
       pushName,
       push_name: pushName,
-      media_type: mediaType,
+      media_type: effectiveMediaType,
       media_base64: mediaBase64,
+      media_url: mediaUrl,
+      mime_type: mimeType,
       is_group: remoteJid.endsWith('@g.us'),
       message_id: key?.id,
     };
@@ -603,31 +670,139 @@ export class WhatsappService {
       (data.body as string) ||
       (data.caption as string) ||
       '';
-    const mediaType = data.media_type as string | undefined;
+    const rawMediaType = (data.media_type as string | undefined)?.toLowerCase().trim();
     const mediaBase64 = data.media_base64 as string | undefined;
-    const mimeType = (data.mime_type as string) || 'application/octet-stream';
+    const mediaUrl = (data.media_url as string | undefined) || (data.mediaUrl as string | undefined);
+    const rawMime = (data.mime_type as string) || (data.mimetype as string) || '';
+
+    // Normaliza media_type para os três tipos suportados pelo chat
+    let mediaType: 'image' | 'audio' | 'video' | 'document' | undefined;
+    if (rawMediaType === 'image' || rawMediaType === 'sticker') {
+      mediaType = 'image';
+    } else if (
+      rawMediaType === 'audio' ||
+      rawMediaType === 'ptt' ||
+      rawMediaType === 'voice' ||
+      rawMediaType === 'voicenote' ||
+      rawMediaType === 'voice_note'
+    ) {
+      mediaType = 'audio';
+    } else if (rawMediaType === 'video') {
+      mediaType = 'video';
+    } else if (rawMediaType === 'document') {
+      mediaType = 'document';
+    }
+
+    // Infere mime_type quando ausente, baseado no tipo de mídia
+    const mimeType =
+      rawMime ||
+      (mediaType === 'image'
+        ? 'image/jpeg'
+        : mediaType === 'audio'
+          ? 'audio/mpeg'
+          : mediaType === 'video'
+            ? 'video/mp4'
+            : 'application/octet-stream');
 
     let content = text;
     let msgType = 'text';
-    const metadata: Record<string, unknown> = { raw: data };
+    const metadata: Record<string, unknown> = {};
 
-    if (mediaType === 'image' || mediaType === 'audio' || mediaType === 'video') {
-      msgType = mediaType === 'video' ? 'video' : mediaType;
-      content =
-        mediaType === 'image'
-          ? text || '📷 Imagem'
-          : mediaType === 'audio'
-            ? '🎵 Áudio'
-            : text || '🎬 Vídeo';
-      if (mediaBase64) {
-        metadata.downloadUrl = `data:${mimeType};base64,${mediaBase64}`;
+    /**
+     * Resolve base64 da mídia: usa o que veio no webhook ou baixa da media_url.
+     * Limite de 20 MB para evitar payloads gigantes no banco.
+     */
+    const MAX_INLINE_BYTES = 20 * 1024 * 1024;
+    const resolveMediaBase64 = async (
+      b64: string | undefined,
+      url: string | undefined,
+    ): Promise<{ b64: string; mime: string } | null> => {
+      if (b64) return { b64, mime: mimeType };
+      if (!url) return null;
+      try {
+        const token = await this.whats2.getBearerToken();
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return null;
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength > MAX_INLINE_BYTES) return null;
+        const contentMime = res.headers.get('content-type')?.split(';')[0].trim() || mimeType;
+        return { b64: Buffer.from(buf).toString('base64'), mime: contentMime };
+      } catch {
+        return null;
       }
-      metadata.mime_type = mimeType;
-    } else if (mediaType === 'document' && (mimeType.startsWith('video/') || data.filename)) {
+    };
+
+    if (mediaType === 'image') {
+      msgType = 'image';
+      content = text || '📷 Imagem';
+      const resolved = await resolveMediaBase64(mediaBase64, mediaUrl);
+      if (resolved) {
+        metadata.downloadUrl = `data:${resolved.mime};base64,${resolved.b64}`;
+        metadata.media_base64 = resolved.b64;
+        metadata.mime_type = resolved.mime;
+      } else {
+        if (mediaUrl) metadata.media_url = mediaUrl;
+        metadata.mime_type = mimeType;
+      }
+    } else if (mediaType === 'audio') {
+      msgType = 'audio';
+      content = '🎵 Áudio';
+      const resolved = await resolveMediaBase64(mediaBase64, mediaUrl);
+      if (resolved) {
+        metadata.downloadUrl = `data:${resolved.mime};base64,${resolved.b64}`;
+        metadata.media_base64 = resolved.b64;
+        metadata.mime_type = resolved.mime;
+      } else {
+        if (mediaUrl) metadata.media_url = mediaUrl;
+        metadata.mime_type = mimeType;
+      }
+    } else if (mediaType === 'video') {
       msgType = 'video';
       content = text || '🎬 Vídeo';
-      if (mediaBase64) {
-        metadata.downloadUrl = `data:${mimeType};base64,${mediaBase64}`;
+      const resolved = await resolveMediaBase64(mediaBase64, mediaUrl);
+      if (resolved) {
+        metadata.downloadUrl = `data:${resolved.mime};base64,${resolved.b64}`;
+        metadata.media_base64 = resolved.b64;
+        metadata.mime_type = resolved.mime;
+      } else {
+        if (mediaUrl) metadata.media_url = mediaUrl;
+        metadata.mime_type = mimeType;
+      }
+    } else if (mediaType === 'document') {
+      const docMime = mimeType;
+      if (docMime.startsWith('audio/')) {
+        msgType = 'audio';
+        content = text || '🎵 Áudio';
+        const resolved = await resolveMediaBase64(mediaBase64, mediaUrl);
+        if (resolved) {
+          metadata.downloadUrl = `data:${resolved.mime};base64,${resolved.b64}`;
+          metadata.media_base64 = resolved.b64;
+          metadata.mime_type = resolved.mime;
+        } else {
+          if (mediaUrl) metadata.media_url = mediaUrl;
+          metadata.mime_type = docMime;
+        }
+      } else if (docMime.startsWith('video/')) {
+        msgType = 'video';
+        content = text || '🎬 Vídeo';
+        const resolved = await resolveMediaBase64(mediaBase64, mediaUrl);
+        if (resolved) {
+          metadata.downloadUrl = `data:${resolved.mime};base64,${resolved.b64}`;
+          metadata.media_base64 = resolved.b64;
+          metadata.mime_type = resolved.mime;
+        } else {
+          if (mediaUrl) metadata.media_url = mediaUrl;
+          metadata.mime_type = docMime;
+        }
+      } else {
+        // Documento genérico
+        content = text || (data.filename as string) || '📎 Documento';
+        const resolved = await resolveMediaBase64(mediaBase64, mediaUrl);
+        if (resolved) {
+          metadata.downloadUrl = `data:${resolved.mime};base64,${resolved.b64}`;
+        } else if (mediaUrl) {
+          metadata.media_url = mediaUrl;
+        }
       }
     }
 

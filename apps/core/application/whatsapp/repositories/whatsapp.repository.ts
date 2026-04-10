@@ -254,6 +254,21 @@ export class WhatsappRepository {
     });
   }
 
+  async findMessageById(
+    schema: string,
+    messageId: string,
+  ): Promise<WhatsappMessageRow | null> {
+    return this.runner.run(schema, async (tx) => {
+      const rows = await tx.$queryRaw<WhatsappMessageRow[]>`
+        SELECT id, conversation_id, message_id, content, sender, message_type, status, timestamp, metadata
+        FROM whatsapp_messages
+        WHERE id = ${messageId}
+        LIMIT 1
+      `;
+      return rows[0] ?? null;
+    });
+  }
+
   async listActiveUserIds(schema: string): Promise<string[]> {
     return this.runner.run(schema, async (tx) => {
       const rows = await tx.$queryRaw<{ id: string }[]>`

@@ -3,14 +3,17 @@ import {
   Controller,
   Get,
   Header,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Req,
+  Res,
   Sse,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { Observable, interval, merge, map } from 'rxjs';
@@ -182,6 +185,26 @@ export class WhatsappController {
     const schema = getRequiredTenantSchema();
     await this.whatsapp.markRead(schema, id, reqUserId(req));
     return { ok: true };
+  }
+
+  @Get('messages/:msgId/media')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Proxy de mídia: baixa arquivo via Whats2 com autenticação' })
+  async mediaProxy(
+    @Param('msgId') msgId: string,
+    @Res() res: Response,
+  ) {
+    const schema = getRequiredTenantSchema();
+    const result = await this.whatsapp.getMessageMediaProxy(schema, msgId);
+    if (!result) throw new NotFoundException('Mídia não encontrada');
+    const buf = Buffer.from(result.base64, 'base64');
+    res.set({
+      'Content-Type': result.mimeType,
+      'Content-Length': String(buf.length),
+      'Cache-Control': 'private, max-age=86400',
+    });
+    res.end(buf);
   }
 
   @Sse('stream')
