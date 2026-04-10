@@ -14,6 +14,7 @@ import type { WhatsappConversationRow, WhatsappMessageRow } from '../repositorie
 import {
   digitsOnlyForWhatsapp,
   validateWhatsappDestinationDigits,
+  resolveWhats2OutboundTo,
 } from '../utils/whatsapp-phone.util';
 import { transcodeWebmForWhatsappOutbound } from '../utils/whatsapp-audio-transcode.util';
 import { transcodeWebmVideoToMp4 } from '../utils/whatsapp-video-transcode.util';
@@ -70,6 +71,8 @@ function dataUrlForInlinePreview(mime: string, base64Raw: string): string | unde
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
 
+  private whatsappInstanceJidDigitsCache: { v: string; t: number } | null = null;
+
   constructor(
     private readonly repo: WhatsappRepository,
     private readonly whats2: Whats2ApiService,
@@ -84,6 +87,40 @@ export class WhatsappService {
       throw new BadRequestException('WHATS2_WEBHOOK_TENANT_CNPJ inválido ou ausente');
     }
     return cnpj;
+  }
+
+  private async getCachedWhatsappInstanceJidDigits(): Promise<string | null> {
+    const ttl = 120_000;
+    const now = Date.now();
+    if (this.whatsappInstanceJidDigitsCache && now - this.whatsappInstanceJidDigitsCache.t < ttl) {
+      return this.whatsappInstanceJidDigitsCache.v;
+    }
+    try {
+      const s = await this.whats2.getInstanceStatus();
+      const jid = s.jid?.trim();
+      if (!jid?.includes('@')) return null;
+      const d = jid.split('@')[0].split(':')[0].replace(/\D/g, '');
+      if (d.length < 10 || d.length > 15) return null;
+      this.whatsappInstanceJidDigitsCache = { v: d, t: now };
+      return d;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Se o webhook não traz `fromMe`, mas `from` é o JID da instância (mensagem pelo app mobile),
+   * trata como envio nosso.
+   */
+  private async inferFromMeByMatchingInstanceJid(data: Record<string, unknown>): Promise<boolean> {
+    const from = typeof data.from === 'string' ? data.from.trim() : '';
+    if (!from) return false;
+    const self = await this.getCachedWhatsappInstanceJidDigits();
+    if (!self) return false;
+    const fromDigits = from.includes('@')
+      ? from.split('@')[0].split(':')[0].replace(/\D/g, '')
+      : from.replace(/\D/g, '');
+    return fromDigits.length >= 10 && fromDigits.length <= 15 && fromDigits === self;
   }
 
   async listConversations(schema: string, userId: string) {
@@ -180,7 +217,11 @@ export class WhatsappService {
   ) {
     const conv = await this.repo.findConversationById(schema, conversationId, userId);
     if (!conv) throw new NotFoundException('Conversa não encontrada');
-    const res = await this.whats2.sendText(conv.chat_id, text);
+    const dest = resolveWhats2OutboundTo(conv);
+    if (dest.ok === false) {
+      throw new BadRequestException(dest.message);
+    }
+    const res = await this.whats2.sendText(dest.to, text);
     const msgId = randomUUID();
     await this.repo.insertMessage(schema, {
       id: msgId,
@@ -215,8 +256,12 @@ export class WhatsappService {
   ) {
     const conv = await this.repo.findConversationById(schema, conversationId, userId);
     if (!conv) throw new NotFoundException('Conversa não encontrada');
+    const dest = resolveWhats2OutboundTo(conv);
+    if (dest.ok === false) {
+      throw new BadRequestException(dest.message);
+    }
+    const to = dest.to;
     let apiRes: { message_id?: string };
-    const to = conv.chat_id;
     const rawB64 = stripDataUrlBase64(body.base64);
 
     // Track the final format after any transcoding (used for metadata storage)
@@ -500,8 +545,14 @@ export class WhatsappService {
     if (remoteJid.endsWith('@g.us') || remoteJid.endsWith('@broadcast')) {
       return null;
     }
-    // Não descarta fromMe — passa a flag para ingestInboundMessage tratar como sender:'user'
-    const fromMe = key?.fromMe === true;
+    // Baileys pode enviar fromMe como boolean, "true" ou 1 (tipos soltos no JSON)
+    const kfm = key?.fromMe as unknown;
+    const fromMe =
+      kfm === true ||
+      kfm === 'true' ||
+      kfm === 1 ||
+      kfm === '1' ||
+      (key as { from_me?: unknown } | undefined)?.from_me === true;
 
     const inner = m.message as Record<string, unknown> | undefined;
     if (inner?.reactionMessage || inner?.protocolMessage) {
@@ -665,12 +716,31 @@ export class WhatsappService {
       `key.fromMe=${(data.key as { fromMe?: unknown } | undefined)?.fromMe}`,
     );
 
-    // --- Detecta fromMe com suporte a booleano e string ---
+    // --- Detecta mensagem enviada pela própria instância (app mobile / outro cliente) ---
+    const keyObj = data.key as { fromMe?: unknown; from_me?: unknown } | undefined;
+    // Não usar ?? com `fromMe: false` — senão nunca se lê `outbound` / outras flags
     const rawFromMe =
       (data.fromMe as unknown) ??
       (data.from_me as unknown) ??
-      (data.key as { fromMe?: unknown } | undefined)?.fromMe;
-    const isFromMe = rawFromMe === true || rawFromMe === 'true';
+      (data as { is_from_me?: unknown }).is_from_me ??
+      keyObj?.fromMe ??
+      keyObj?.from_me;
+    let isFromMe =
+      rawFromMe === true ||
+      rawFromMe === 'true' ||
+      rawFromMe === 1 ||
+      rawFromMe === '1';
+    if (!isFromMe) {
+      const ob = (data as { outbound?: unknown }).outbound;
+      if (ob === true || ob === 'true' || ob === 1) isFromMe = true;
+    }
+    if (!isFromMe && (data as { direction?: string }).direction) {
+      const d = String((data as { direction?: string }).direction).toLowerCase();
+      if (d === 'out' || d === 'outgoing') isFromMe = true;
+    }
+    if (!isFromMe) {
+      isFromMe = await this.inferFromMeByMatchingInstanceJid(data);
+    }
 
     // Para mensagens fromMe (atendente → cliente) o campo `from` é o remetente (a nossa instância),
     // não o cliente. Usamos `chat` ou `remoteJid` que apontam sempre para o interlocutor.
@@ -865,7 +935,7 @@ export class WhatsappService {
     if (isFromMe) {
       // Mensagem enviada pelo atendente fora do sistema (ex: app mobile da instância registada).
       // Nunca criamos uma nova conversa para mensagens outbound — apenas adicionamos ao histórico
-      // da conversa existente como sender:'user'. Se a conversa ainda não existe, ignoramos.
+      // da conversa existente como sender:'agent' (igual ao CRM). Se não existe conversa, ignoramos.
       if (!conv) {
         this.logger.debug(
           `[fromMe] Mensagem do atendente para chat_id="${chatId}" sem conversa existente — ignorada`,
@@ -897,6 +967,9 @@ export class WhatsappService {
     }
     if (!conv) return;
 
+    // Whats2 entrega pelo JID de telefone; manter contact_phone alinhado ao `...@s.whatsapp.net`
+    await this.repo.syncContactPhoneFromJid(schema, conv.id, chatId);
+
     const extId = messageId;
     if (extId && (await this.repo.messageExists(schema, conv.id, extId))) {
       return;
@@ -907,7 +980,7 @@ export class WhatsappService {
       conversation_id: conv.id,
       message_id: extId || null,
       content,
-      sender: isFromMe ? 'user' : 'customer',
+      sender: isFromMe ? 'agent' : 'customer',
       message_type: msgType,
       status: 'delivered',
       timestamp: now,
@@ -972,7 +1045,8 @@ export class WhatsappService {
       id: m.id,
       conversation_id: m.conversation_id,
       content: m.content,
-      sender: m.sender === 'agent' ? 'agent' : 'customer',
+      sender:
+        m.sender === 'agent' || m.sender === 'user' ? 'agent' : 'customer',
       timestamp: m.timestamp.toISOString(),
       message_type: m.message_type,
       status: m.status,

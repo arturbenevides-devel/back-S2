@@ -128,6 +128,24 @@ export class WhatsappRepository {
     });
   }
 
+  async syncContactPhoneFromJid(schema: string, conversationId: string, chatId: string): Promise<void> {
+    if (!chatId.toLowerCase().endsWith('@s.whatsapp.net')) {
+      return;
+    }
+    const local = chatId.split('@')[0];
+    const digits = local.split(':')[0].replace(/\D/g, '');
+    if (digits.length < 10 || digits.length > 15) {
+      return;
+    }
+    return this.runner.run(schema, async (tx) => {
+      await tx.$executeRaw`
+        UPDATE whatsapp_conversations
+        SET contact_phone = ${digits}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${conversationId}
+      `;
+    });
+  }
+
   async createConversation(
     schema: string,
     row: Omit<WhatsappConversationRow, 'created_at' | 'updated_at'>,
@@ -200,8 +218,6 @@ export class WhatsappRepository {
   ): Promise<void> {
     return this.runner.run(schema, async (tx) => {
       const metaJson = JSON.stringify(msg.metadata ?? {});
-      // O índice parcial "whatsapp_messages_conv_external_msg" cobre (conversation_id, message_id)
-      // WHERE message_id IS NOT NULL. O ON CONFLICT deve replicar exactamente essa condição.
       await tx.$executeRawUnsafe(
         `INSERT INTO whatsapp_messages (
           id, conversation_id, message_id, content, sender, message_type, status, timestamp, metadata
@@ -241,7 +257,6 @@ export class WhatsappRepository {
     userId: string,
   ): Promise<WhatsappMessageRow[]> {
     return this.runner.run(schema, async (tx) => {
-      // Allow access to own conversations OR unassigned ones (so attendants can preview before claiming)
       const conv = await tx.$queryRaw<{ id: string }[]>`
         SELECT id FROM whatsapp_conversations
         WHERE id = ${conversationId}

@@ -111,14 +111,15 @@ export class Whats2ApiService {
     }
   }
 
-  /**
-   * Painel/API Whats2 (ex.: POST .../messages/text) usa `"to": "558487125156"` — só dígitos.
-   * Grupos continuam como `id@g.us` (só dígitos perderia o sufixo).
-   */
   private formatRecipientForWhats2Api(to: string): string {
     const t = to.trim();
     if (!t) {
       throw new BadRequestException('Destino da mensagem vazio');
+    }
+    if (t.toLowerCase().endsWith('@lid')) {
+      throw new BadRequestException(
+        'O destino não pode ser um LID (@lid). Configure o envio com o número (JID) E.164 do contacto.',
+      );
     }
     if (t.includes('@g.us')) {
       const local = t.split('@')[0].replace(/\D/g, '');
@@ -253,7 +254,6 @@ export class Whats2ApiService {
     const fn = payload.filename?.trim() || 'video.mp4';
     const cap = payload.caption;
 
-    // Formato idêntico ao demo: base64 + mime_type + filename (+ caption opcional)
     const result = await this.postJson(docPath, to, {
       base64: payload.base64,
       mime_type: payload.mime_type,
