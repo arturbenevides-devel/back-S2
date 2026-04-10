@@ -5,19 +5,11 @@ import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-// ffmpeg-static é um módulo CJS que exporta o caminho como string diretamente.
-// O import padrão do TypeScript compila para `.default`, que fica undefined em runtime.
-// Usando require() diretamente para garantir a string correta.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+
 const ffmpegStaticPath: string | null = require('ffmpeg-static');
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Ordem: FFMPEG_PATH / FFMPEG_BIN → pacote ffmpeg-static → binário `ffmpeg` no PATH do sistema.
- * Em WSL: `sudo apt install -y ffmpeg` ou defina FFMPEG_PATH=/usr/bin/ffmpeg
- */
-/** Expuesto para transcodificação de vídeo (WebM→MP4) no mesmo processo. */
 export function resolveFfmpegExecutable(): string {
   const fromEnv =
     process.env.FFMPEG_PATH?.trim() || process.env.FFMPEG_BIN?.trim();
@@ -34,7 +26,7 @@ export function resolveFfmpegExecutable(): string {
     }).trim();
     if (out) return out.split('\n')[0]!;
   } catch {
-    /* ignore */
+    console.error('ffmpeg not found');
   }
   return 'ffmpeg';
 }
@@ -47,10 +39,6 @@ function ffmpegErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/**
- * WebM (Opus) do browser → formato aceite pelo Whats2 em `/messages/audio`.
- * Tenta MP3 primeiro; se `libmp3lame` não existir no ffmpeg estático, usa OGG Opus (nota de voz).
- */
 export async function transcodeWebmForWhatsappOutbound(
   base64: string,
 ): Promise<{ base64: string; mime_type: string }> {
@@ -58,67 +46,23 @@ export async function transcodeWebmForWhatsappOutbound(
   const id = randomUUID();
   const inPath = join(tmpdir(), `wa-audio-in-${id}.webm`);
   const mp3Path = join(tmpdir(), `wa-audio-mp3-${id}.mp3`);
-  const oggPath = join(tmpdir(), `wa-audio-ogg-${id}.ogg`);
 
   await writeFile(inPath, Buffer.from(base64, 'base64'));
 
   try {
-    try {
-      await execFileAsync(
-        ffmpegPath,
-        [
-          '-y',
-          '-i',
-          inPath,
-          '-vn',
-          '-acodec',
-          'libmp3lame',
-          '-ar',
-          '44100',
-          '-ac',
-          '2',
-          '-b:a',
-          '128k',
-          mp3Path,
-        ],
-        { maxBuffer: 10 * 1024 * 1024 },
-      );
-      return {
-        base64: (await readFile(mp3Path)).toString('base64'),
-        mime_type: 'audio/mpeg',
-      };
-    } catch (mp3Err) {
-      await execFileAsync(
-        ffmpegPath,
-        [
-          '-y',
-          '-i',
-          inPath,
-          '-vn',
-          '-acodec',
-          'libopus',
-          '-ar',
-          '48000',
-          '-ac',
-          '1',
-          '-b:a',
-          '64k',
-          oggPath,
-        ],
-        { maxBuffer: 10 * 1024 * 1024 },
-      );
-      return {
-        base64: (await readFile(oggPath)).toString('base64'),
-        mime_type: 'audio/ogg',
-      };
-    }
-  } catch (finalErr) {
-    throw new Error(
-      `Transcodificação ffmpeg (WebM→MP3 ou OGG) falhou: ${ffmpegErrorMessage(finalErr)}`,
+    await execFileAsync(
+      ffmpegPath,
+      ['-y', '-i', inPath, '-vn', '-acodec', 'libmp3lame', '-ar', '44100', '-ac', '1', '-b:a', '64k', mp3Path],
+      { maxBuffer: 10 * 1024 * 1024 },
     );
+    return {
+      base64: (await readFile(mp3Path)).toString('base64'),
+      mime_type: 'audio/mpeg',
+    };
+  } catch (err) {
+    throw new Error(`Transcodificação ffmpeg (WebM→MP3) falhou: ${ffmpegErrorMessage(err)}`);
   } finally {
     await unlink(inPath).catch(() => undefined);
     await unlink(mp3Path).catch(() => undefined);
-    await unlink(oggPath).catch(() => undefined);
   }
 }
