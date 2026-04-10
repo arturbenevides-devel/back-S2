@@ -34,8 +34,14 @@ function phoneFromChatId(chatId: string): string {
   return chatId.split('@')[0] || chatId;
 }
 
-const MAX_DATA_URL_BYTES = 32 * 1024 * 1024;
-const MAX_AUDIO_MEDIA_BASE64_BYTES = 8 * 1024 * 1024;
+// Limite máximo para guardar base64 da mídia no banco (histórico completo).
+// 200 MB → ~267 MB em base64 — PostgreSQL suporta via TOAST.
+// Futuramente substituir por upload direto para S3/bucket.
+const MAX_MEDIA_STORE_BYTES = 200 * 1024 * 1024;
+
+// Limite para gerar data: URI inline (string enorme no body da resposta API).
+// Acima disto, o frontend cria um blob URL a partir de metadata.media_base64 + mime_type.
+const MAX_INLINE_PREVIEW_BYTES = 5 * 1024 * 1024;
 
 function stripDataUrlBase64(input: string): string {
   const t = input.trim();
@@ -49,7 +55,8 @@ function stripDataUrlBase64(input: string): string {
 function dataUrlForInlinePreview(mime: string, base64Raw: string): string | undefined {
   try {
     const buf = Buffer.from(base64Raw, 'base64');
-    if (buf.length > MAX_DATA_URL_BYTES) return undefined;
+    // Só gera data: URI para ficheiros pequenos; ficheiros maiores usam blob URL via media_base64
+    if (buf.length > MAX_INLINE_PREVIEW_BYTES) return undefined;
     return `data:${mime};base64,${base64Raw}`;
   } catch {
     return undefined;
@@ -299,10 +306,7 @@ export class WhatsappService {
     } catch {
       decodedLen = 0;
     }
-    const storeMediaBase64 =
-      body.kind === 'audio'
-        ? decodedLen > 0 && decodedLen <= MAX_AUDIO_MEDIA_BASE64_BYTES
-        : decodedLen > 0 && decodedLen <= MAX_DATA_URL_BYTES;
+    const storeMediaBase64 = decodedLen > 0 && decodedLen <= MAX_MEDIA_STORE_BYTES;
     await this.repo.insertMessage(schema, {
       id: msgId,
       conversation_id: conversationId,
@@ -712,7 +716,7 @@ export class WhatsappService {
      * Resolve base64 da mídia: usa o que veio no webhook ou baixa da media_url.
      * Limite de 20 MB para evitar payloads gigantes no banco.
      */
-    const MAX_INLINE_BYTES = 20 * 1024 * 1024;
+    const MAX_INLINE_BYTES = MAX_MEDIA_STORE_BYTES; // 200 MB
     const resolveMediaBase64 = async (
       b64: string | undefined,
       url: string | undefined,
