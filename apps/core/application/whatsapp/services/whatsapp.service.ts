@@ -230,7 +230,7 @@ export class WhatsappService {
       content: text,
       sender: 'agent',
       message_type: 'text',
-      status: 'sent',
+      status: 'delivered',
       timestamp: new Date(),
       metadata: {},
     });
@@ -362,7 +362,7 @@ export class WhatsappService {
       content,
       sender: 'agent',
       message_type: messageType,
-      status: 'sent',
+      status: 'delivered',
       timestamp: new Date(),
       metadata: {
         mime_type: finalMime,
