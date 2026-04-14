@@ -191,24 +191,20 @@ export class WhatsappRepository {
     lastSeen: Date,
     contactName: string | null,
   ): Promise<void> {
+    const push = contactName?.trim() || null;
     return this.runner.run(schema, async (tx) => {
-      if (contactName) {
-        await tx.$executeRaw`
-          UPDATE whatsapp_conversations
-          SET
-            contact_name = ${contactName},
-            status = 'online',
-            last_seen = ${lastSeen},
-            updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-        `;
-      } else {
-        await tx.$executeRaw`
-          UPDATE whatsapp_conversations
-          SET status = 'online', last_seen = ${lastSeen}, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ${id}
-        `;
-      }
+      await tx.$executeRaw`
+        UPDATE whatsapp_conversations
+        SET
+          contact_name = COALESCE(
+            NULLIF(TRIM(COALESCE(contact_name, '')), ''),
+            ${push}
+          ),
+          status = 'online',
+          last_seen = ${lastSeen},
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ${id}
+      `;
     });
   }
 
